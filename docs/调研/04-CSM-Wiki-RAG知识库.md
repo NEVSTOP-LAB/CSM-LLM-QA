@@ -1,5 +1,13 @@
 # CSM Wiki RAG 知识库调研
 
+> **调研结论摘要**
+>
+> 对比 RAG 与 Skill（Function Calling）两种方案后，**推荐使用 RAG**：
+> CSM Wiki 是相对稳定的领域知识文档，不需要实时数据或外部 API 操作，RAG 精准且成本低。
+> Skill 适合"需要执行动作或获取实时数据"的场景，不适合本项目的静态知识检索需求。
+> 向量库选 **ChromaDB**（本地持久化，无服务器），Embedding 选 **BAAI/bge-small-zh-v1.5**（免费，中文优秀）。
+> 通过 MD5 哈希增量更新，只对变更文件重新 embedding，最大化节省 API 费用。
+
 ## 1. 问题定义
 
 | 需求 | 挑战 |
@@ -113,9 +121,49 @@ def retrieve_context(query: str, k: int = 3) -> list[str]:
 | 定期更新（周级） | 每周日专用 `sync-wiki` workflow |
 | 高频更新 | Wiki 仓库 push 事件触发同步（webhook） |
 
-## 9. 参考资源
+## 9. RAG vs Skill（Function Calling）方案对比
+
+### 9.1 概念定义
+
+| 方案 | 原理 | 典型场景 |
+|------|------|----------|
+| **RAG** | 查询时向量检索相关文档片段，注入 Prompt | 静态/半静态知识库问答 |
+| **Skill（Function Calling）** | LLM 决定调用哪个函数（工具），系统执行后返回结果 | 实时数据、外部 API、执行操作 |
+
+### 9.2 详细对比
+
+| 维度 | RAG | Skill / Function Calling |
+|------|-----|--------------------------|
+| **知识更新** | 需重新 embedding（可增量） | 函数逻辑更新即生效 |
+| **实时性** | 取决于索引更新频率 | 天然实时（直接调用 API） |
+| **精确性** | 向量相似度，可能检索到不相关内容 | 确定性高，函数输出可控 |
+| **Token 消耗** | 注入文档片段，消耗较多输入 token | 只返回精确结果，消耗少 |
+| **适合内容类型** | 文档、FAQ、规范、指南 | 数据库查询、外部服务、实时信息 |
+| **工程复杂度** | 中（向量库 + embedding） | 高（函数设计、错误处理、安全） |
+| **CSM Wiki 适用性** | ✅ 高度适合 | ❌ 过度设计（知识是静态文档） |
+
+### 9.3 Skill 的适用场景（何时考虑）
+
+本项目中，以下场景可以考虑引入 Skill/Function Calling：
+- 查询某客户的合同状态（需访问外部 CRM）
+- 获取产品最新版本信息（需实时查询）
+- 自动创建工单（执行动作）
+
+**但 CSM Wiki 是相对稳定的规范文档**，不需要实时查询，RAG 完全满足需求。
+
+### 9.4 结论与推荐
+
+```
+CSM Wiki 知识检索 → 使用 RAG（本文档其余部分详述）
+未来扩展实时查询 → 可叠加 Function Calling（不影响 RAG 层）
+```
+
+> 参考：[RAG vs Function Calling (getstream.io)](https://getstream.io/blog/rag-function-calling/) | [RAG, Tool Calling, Function Calling: Boundaries & Patterns](https://jit.pro/blog/rag-tool-calling-function-calling-boundaries-patterns)
+
+## 10. 参考资源
 
 - [LangChain RAG Tutorial](https://python.langchain.com/docs/tutorials/rag/)
 - [ChromaDB Docs](https://docs.trychroma.com/)
 - [BAAI/bge 中文 Embedding 模型](https://huggingface.co/BAAI/bge-small-zh-v1.5)
 - [Context-Aware RAG (Microsoft)](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/context-aware-rag-system-with-azure-ai-search-to-cut-token-costs-and-boost-accur/4456810)
+- [RAG vs Function Calling](https://getstream.io/blog/rag-function-calling/)
