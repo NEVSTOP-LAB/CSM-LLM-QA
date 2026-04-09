@@ -1,0 +1,12 @@
+# Zhihu CSM Reply Robot - Dependencies
+# 参考: docs/plan/README.md AI-002
+
+openai>=1.0
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+requests>=2.31.0
+pyyaml>=6.0
+python-frontmatter>=1.0.0
+tiktoken>=0.5.0
+pytest>=7.0.0
+pytest-mock>=3.10.0

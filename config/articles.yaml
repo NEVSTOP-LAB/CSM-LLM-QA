@@ -1,0 +1,17 @@
+# AI-002: 监控的知乎文章/问题列表
+# 参考: docs/plan/README.md § 四、关键配置文件格式
+#
+# 维护说明：
+# - 仅包含需要监控回复的文章/问题
+# - type 字段支持 "article"（专栏文章）和 "question"（知乎提问）
+# - 所有运行参数统一在 config/settings.yaml 中管理
+
+articles:
+  - id: "98765432"
+    title: "CSM 最佳实践系列（一）"
+    url: "https://zhuanlan.zhihu.com/p/98765432"
+    type: "article"
+  - id: "123456789"
+    title: "如何做好客户成功？"
+    url: "https://www.zhihu.com/question/123456789"
+    type: "question"
