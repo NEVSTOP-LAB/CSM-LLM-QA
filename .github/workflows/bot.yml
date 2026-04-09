@@ -1,0 +1,92 @@
+# AI-004: 主 Workflow — 知乎 CSM 自动回复机器人
+# 参考: docs/plan/README.md § AI-004, docs/调研/02-GitHub-Actions自动化.md
+#
+# 触发条件：每6小时（UTC 2/8/14/20 点）+ 手动触发
+# 功能：checkout → setup-python → 缓存 → 安装依赖 → 运行 bot → git commit+push
+# 所需 Secrets: ZHIHU_COOKIE, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+
+name: Zhihu Reply Bot
+
+on:
+  schedule:
+    # 每6小时检查一次（UTC 时间 2/8/14/20 点）
+    # 参考: docs/调研/02-GitHub-Actions自动化.md § 1. 定时触发
+    - cron: '0 2,8,14,20 * * *'
+  workflow_dispatch:  # 支持手动触发调试
+
+permissions:
+  contents: write    # 需要写权限以推送存档
+  issues: write      # 需要写权限以创建告警 Issue
+
+jobs:
+  check-and-reply:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 步骤 1：检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 步骤 2：设置 Python 环境
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 步骤 3：缓存 pip 依赖
+      # 参考: docs/调研/02-GitHub-Actions自动化.md § 2. 典型 Workflow 结构
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # 步骤 4：缓存 HuggingFace 模型
+      # 参考: docs/plan/README.md § AI-004 — HuggingFace 模型缓存
+      # 解决 BGE 模型 ~400MB 每次拉取超时问题
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ runner.os }}-hf-${{ hashFiles('config/settings.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-hf-
+
+      # 步骤 5：缓存向量库（Actions Cache 方案）
+      # 参考: docs/plan/README.md § AI-011 — 向量库外部化
+      - name: Cache vector stores
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/vector_store
+            data/reply_index
+          key: ${{ runner.os }}-vectordb-${{ github.run_number }}
+          restore-keys: |
+            ${{ runner.os }}-vectordb-
+
+      # 步骤 6：安装依赖
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 步骤 7：运行主程序
+      - name: Run bot
+        env:
+          ZHIHU_COOKIE: ${{ secrets.ZHIHU_COOKIE }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/run_bot.py
+
+      # 步骤 8：提交归档变更
+      # 参考: docs/调研/02-GitHub-Actions自动化.md § 2. 典型 Workflow 结构
+      # [skip ci] 防止存档提交再次触发 workflow
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ archive/ pending/
+          git diff --cached --quiet || git commit -m "bot: update reply archive [skip ci]"
+          git push
