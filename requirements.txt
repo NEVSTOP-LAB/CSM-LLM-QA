@@ -1,12 +1,15 @@
 # Zhihu CSM Reply Robot - Dependencies
 # 参考: docs/plan/README.md AI-002
 
-openai>=1.0
-chromadb>=0.4.0
-sentence-transformers>=2.2.0
-requests>=2.31.0
-pyyaml>=6.0
-python-frontmatter>=1.0.0
-tiktoken>=0.5.0
+# ─── Core ─────────────────────────────
+openai>=1.0              # LLM API 调用（OpenAI兼容接口）
+chromadb>=0.4.0          # 向量数据库
+sentence-transformers>=2.2.0  # 本地 BGE embedding
+requests>=2.31.0         # HTTP 客户端（知乎API + GitHub API）
+pyyaml>=6.0              # 配置文件解析
+python-frontmatter>=1.0.0  # 线程文件 YAML front-matter
+tiktoken>=0.5.0          # Token 计数
+
+# ─── Testing ──────────────────────────
 pytest>=7.0.0
 pytest-mock>=3.10.0
