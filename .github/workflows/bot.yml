@@ -26,6 +26,12 @@ permissions:
   contents: write
   issues: write    # 告警模块需要创建 Issue（AI-010）
 
+# 并发控制：同一时间只允许一个 bot 实例运行（FIX-22）
+# 避免多次 workflow 并发读写 seen_ids.json 导致数据损坏
+concurrency:
+  group: reply-bot
+  cancel-in-progress: false
+
 jobs:
   reply-bot:
     runs-on: ubuntu-latest

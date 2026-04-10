@@ -125,6 +125,15 @@ class TestBotWorkflow:
         assert "skip ci" in commit_step[0].lower(), \
             "commit message 应包含 [skip ci]"
 
+    def test_has_concurrency_setting(self, workflow: dict):
+        """应有 concurrency 设置防止并发写 seen_ids（FIX-22）"""
+        concurrency = workflow.get("concurrency", {})
+        assert concurrency, "缺少 concurrency 设置（FIX-22）"
+        assert "group" in concurrency, "concurrency 应包含 group"
+        assert concurrency.get("cancel-in-progress") is False, (
+            "cancel-in-progress 应为 false，避免正在运行的 bot 被取消"
+        )
+
 
 class TestSyncWikiWorkflow:
     """sync-wiki.yml Workflow 测试"""
