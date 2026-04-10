@@ -195,8 +195,9 @@ class ZhihuClient:
             HTTP 响应对象
 
         Raises:
-            ZhihuAuthError: 401/403
-            ZhihuRateLimitError: 429 重试后仍失败
+            ZhihuAuthError: 401/403 认证失败
+            ZhihuRateLimitError: 429 重试耗尽仍限流
+            ZhihuRequestError: 其他请求失败（HTTP 5xx、网络连接/超时等）
         """
         last_exception: Optional[Exception] = None
 
@@ -230,20 +231,38 @@ class ZhihuClient:
 
             except ZhihuAuthError:
                 raise
-            except requests.RequestException as e:
+            except requests.HTTPError as e:
+                # HTTP 错误（4xx/5xx）：记录并重试
+                # REV-4：区别于网络连接/超时等纯网络异常
                 last_exception = e
                 if attempt < self.max_retries - 1:
                     wait = (2 ** attempt) + random.random()
                     logger.warning(
-                        "请求异常 (%s)，第 %d/%d 次重试，等待 %.1f 秒",
+                        "HTTP 错误 (%s)，第 %d/%d 次重试，等待 %.1f 秒",
+                        e, attempt + 1, self.max_retries, wait
+                    )
+                    time.sleep(wait)
+            except requests.RequestException as e:
+                # 网络类异常（DNS 失败、连接超时等）
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    wait = (2 ** attempt) + random.random()
+                    logger.warning(
+                        "网络异常 (%s)，第 %d/%d 次重试，等待 %.1f 秒",
                         e, attempt + 1, self.max_retries, wait
                     )
                     time.sleep(wait)
 
-        raise ZhihuRateLimitError(
-            f"请求失败，已重试 {self.max_retries} 次: {last_exception}"
-        ) if isinstance(last_exception, ZhihuRateLimitError) else ZhihuRequestError(
-            # FIX-10：网络类异常（DNS 失败、超时等）区别于限流，抛出 ZhihuRequestError
+        # 耗尽重试：按失败原因区分异常类型（REV-4）
+        if isinstance(last_exception, ZhihuRateLimitError):
+            raise ZhihuRateLimitError(
+                f"请求失败，已重试 {self.max_retries} 次: {last_exception}"
+            )
+        if isinstance(last_exception, requests.HTTPError):
+            raise ZhihuRequestError(
+                f"HTTP 请求失败，已重试 {self.max_retries} 次: {last_exception}"
+            )
+        raise ZhihuRequestError(
             f"网络请求失败，已重试 {self.max_retries} 次: {last_exception}"
         )
 

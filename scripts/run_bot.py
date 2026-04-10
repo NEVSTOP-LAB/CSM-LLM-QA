@@ -231,7 +231,7 @@ class BotRunner:
             comment_id: 评论 ID
             risk_reason: AI 风险评估理由
         """
-        pending_dir = self.root / "pending"
+        pending_dir = self.root / "data" / "pending"
         pending_dir.mkdir(parents=True, exist_ok=True)
 
         filename = f"{article['id']}_{comment_id}.md"

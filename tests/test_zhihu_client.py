@@ -297,6 +297,28 @@ class TestRateLimit:
             with pytest.raises(ZhihuRequestError):
                 client.get_comments("99", "article")
 
+    @patch("scripts.zhihu_client.time.sleep")
+    def test_http_5xx_raises_request_error(self, mock_sleep, client):
+        """HTTP 5xx 耗尽重试后应抛出 ZhihuRequestError（REV-4：区分 HTTPError vs 纯网络异常）"""
+        resp_500 = _make_response(500)
+        resp_500.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "500 Server Error"
+        )
+
+        with patch.object(client.session, "request", return_value=resp_500):
+            with pytest.raises(ZhihuRequestError, match="HTTP"):
+                client.get_comments("99", "article")
+
+    @patch("scripts.zhihu_client.time.sleep")
+    def test_network_error_message_says_network(self, mock_sleep, client):
+        """纯网络异常的错误信息应包含'网络'（REV-4：错误文案区分）"""
+        with patch.object(
+            client.session, "request",
+            side_effect=requests.exceptions.ConnectionError("网络中断")
+        ):
+            with pytest.raises(ZhihuRequestError, match="网络"):
+                client.get_comments("99", "article")
+
 
 # ===== Comment 解析测试 =====
 

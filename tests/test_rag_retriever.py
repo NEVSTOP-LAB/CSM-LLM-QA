@@ -261,6 +261,50 @@ class TestSyncWiki:
             "embedding 失败时旧向量应保留，不应被删除（FIX-23）"
         )
 
+    def test_sync_embedding_failure_allows_retry_next_run(
+        self, retriever, wiki_dir
+    ):
+        """embedding 失败时新 hash 不应写入，下次运行应能重试（REV-5）"""
+        # 首次同步，记录初始 hash
+        retriever.sync_wiki()
+        initial_hashes = retriever._load_wiki_hashes()
+        original_hash = initial_hashes.get("guide.md")
+        assert original_hash is not None
+
+        # 修改文件（产生新 hash）
+        (wiki_dir / "guide.md").write_text(
+            "# 更新内容\n\n应当被重试。\n", encoding="utf-8"
+        )
+        new_hash = retriever._compute_md5(wiki_dir / "guide.md")
+        assert new_hash != original_hash
+
+        original_embed = retriever.embedding_fn.embed
+        failed_once = [False]
+
+        def fail_first(texts):
+            if not failed_once[0]:
+                failed_once[0] = True
+                raise RuntimeError("模拟 API 失败")
+            return original_embed(texts)
+
+        # 第一次 sync：embedding 失败，hash 不应写入（REV-5）
+        retriever.embedding_fn.embed = fail_first
+        retriever.sync_wiki()
+
+        hashes_after_failure = retriever._load_wiki_hashes()
+        assert hashes_after_failure.get("guide.md") == original_hash, (
+            "embedding 失败时 hash 不应更新，下次运行才能重试（REV-5）"
+        )
+
+        # 第二次 sync：embedding 恢复正常，应能成功处理并更新 hash
+        retriever.embedding_fn.embed = original_embed
+        retriever.sync_wiki()
+
+        hashes_after_retry = retriever._load_wiki_hashes()
+        assert hashes_after_retry.get("guide.md") == new_hash, (
+            "embedding 成功后 hash 应被更新为最新值（REV-5）"
+        )
+
 
 # ===== 检索测试 =====
 

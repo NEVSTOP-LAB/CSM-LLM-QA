@@ -87,9 +87,9 @@ def bot_root(tmp_path: Path) -> Path:
 
     # 创建必要目录
     (root / "data").mkdir()
+    (root / "data" / "pending").mkdir()
     (root / "csm-wiki").mkdir()
     (root / "archive").mkdir()
-    (root / "pending").mkdir()
 
     return root
 
@@ -214,7 +214,7 @@ class TestProcessArticle:
         runner.process_article(runner.articles[0])
 
         # 验证回复被写入 pending/
-        pending_files = list((bot_root / "pending").glob("*.md"))
+        pending_files = list((bot_root / "data" / "pending").glob("*.md"))
         assert len(pending_files) >= 1
 
         # 验证 pending 文件包含 object_type 元数据
@@ -365,7 +365,7 @@ class TestWritePending:
             comment_id="222",
         )
 
-        pending_files = list((bot_root / "pending").glob("*.md"))
+        pending_files = list((bot_root / "data" / "pending").glob("*.md"))
         assert len(pending_files) == 1
 
         content = pending_files[0].read_text()
@@ -381,7 +381,7 @@ class TestWritePending:
 
         runner._write_pending(article, "评论", "回复", "BBB")
 
-        assert (bot_root / "pending" / "AAA_BBB.md").exists()
+        assert (bot_root / "data" / "pending" / "AAA_BBB.md").exists()
 
 
 # ===== AI 风险评估与自动发布测试 =====
@@ -421,7 +421,7 @@ class TestRiskAssessment:
         # 验证自动发布被调用
         runner.zhihu_client.post_comment.assert_called_once()
         # 不应有 pending 文件
-        pending_files = list((bot_root / "pending").glob("*.md"))
+        pending_files = list((bot_root / "data" / "pending").glob("*.md"))
         assert len(pending_files) == 0
 
     def test_risky_reply_goes_to_pending(self, runner, bot_root):
@@ -454,7 +454,7 @@ class TestRiskAssessment:
         # 不应自动发布
         runner.zhihu_client.post_comment.assert_not_called()
         # 应写入 pending/
-        pending_files = list((bot_root / "pending").glob("*.md"))
+        pending_files = list((bot_root / "data" / "pending").glob("*.md"))
         assert len(pending_files) == 1
         content = pending_files[0].read_text()
         assert "risk_reason" in content
@@ -487,7 +487,7 @@ class TestRiskAssessment:
 
         # 发布被调用但失败，应回退到 pending
         runner.zhihu_client.post_comment.assert_called_once()
-        pending_files = list((bot_root / "pending").glob("*.md"))
+        pending_files = list((bot_root / "data" / "pending").glob("*.md"))
         assert len(pending_files) == 1
 
 

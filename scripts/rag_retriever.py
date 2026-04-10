@@ -283,10 +283,11 @@ class RAGRetriever:
         for md_file in md_files:
             rel_path = str(md_file.relative_to(self.wiki_dir))
             new_hash = self._compute_md5(md_file)
-            new_hashes[rel_path] = new_hash
 
             # 跳过未变更的文件
             if not force and old_hashes.get(rel_path) == new_hash:
+                # 保留旧哈希供 _save_wiki_hashes 使用
+                new_hashes[rel_path] = new_hash
                 skipped_count += 1
                 continue
 
@@ -297,12 +298,15 @@ class RAGRetriever:
             if chunks:
                 texts = [c["text"] for c in chunks]
 
-                # FIX-23：先 embedding，成功后再删除旧向量
-                # 避免 embedding 失败（API 超限等）导致当次运行该文件无法检索
+                # FIX-23/REV-5：先 embedding，成功后再更新 new_hashes 和删旧向量。
+                # embedding 失败时不更新 new_hashes，保证下次运行可以重试。
                 try:
                     embeddings = self.embedding_fn.embed(texts)
                 except Exception as e:
                     logger.warning(f"embedding 失败，跳过 {rel_path}: {e}")
+                    # 失败时保留旧哈希（如有），确保下次还能重试
+                    if rel_path in old_hashes:
+                        new_hashes[rel_path] = old_hashes[rel_path]
                     continue
 
                 # embedding 成功后删除旧向量
@@ -327,6 +331,8 @@ class RAGRetriever:
                     documents=texts,
                     metadatas=metadatas,
                 )
+                # embedding 和写入均成功，才记录新哈希（REV-5）
+                new_hashes[rel_path] = new_hash
                 updated_count += 1
 
         # 删除已移除的文件对应的向量
