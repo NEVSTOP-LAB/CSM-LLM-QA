@@ -880,6 +880,83 @@ class TestReplyIndexToRAG:
         assert "CSM 使用指南" in reply_arg
 
 
+# ===== RAG 检索使用评论内容测试（FIX-02 / TEST-01）=====
+
+class TestRAGQueryByComment:
+    """验证 RAG 检索使用评论内容而非文章标题（FIX-02 / TEST-01）"""
+
+    def test_rag_retrieve_called_with_comment_content(self, runner, bot_root):
+        """RAG retrieve 应以评论内容而非文章标题作为 query（FIX-02）"""
+        runner.load_config()
+        runner.init_modules()
+
+        comment_text = "如何在 LabVIEW 中实现 CSM 状态机？"
+        runner.zhihu_client = MagicMock()
+        runner.zhihu_client.get_comments.return_value = [
+            _make_comment("rag_q1", comment_text),
+        ]
+        runner.zhihu_client.post_comment.return_value = True
+
+        runner.llm_client = MagicMock()
+        runner.llm_client.generate_reply.return_value = ("回复内容", 50)
+        runner.llm_client.assess_risk.return_value = ("safe", "安全")
+        runner.llm_client.total_cost_usd = 0.0
+        runner.llm_client.total_prompt_tokens = 0
+        runner.llm_client.total_completion_tokens = 0
+        runner.llm_client.total_cache_hit_tokens = 0
+        runner.llm_client.model = "deepseek-chat"
+        runner.llm_client.summarize_article.return_value = ""
+
+        runner.rag_retriever = MagicMock()
+        runner.rag_retriever.retrieve.return_value = []
+
+        runner.process_article(runner.articles[0])
+
+        # 验证 retrieve 被调用，且 query 参数为评论内容而非文章标题
+        runner.rag_retriever.retrieve.assert_called_once()
+        call_kwargs = runner.rag_retriever.retrieve.call_args.kwargs
+        query_used = call_kwargs.get("query", runner.rag_retriever.retrieve.call_args[0][0] if runner.rag_retriever.retrieve.call_args[0] else "")
+        assert query_used == comment_text, (
+            f"RAG query 应为评论内容，但实际为: {query_used!r}"
+        )
+
+    def test_rag_retrieve_per_comment_not_shared(self, runner, bot_root):
+        """多条评论各自独立检索（FIX-02）"""
+        runner.load_config()
+        runner.init_modules()
+
+        runner.zhihu_client = MagicMock()
+        runner.zhihu_client.get_comments.return_value = [
+            _make_comment("rag_m1", "第一条评论", author="user_a"),
+            _make_comment("rag_m2", "第二条评论", author="user_b"),
+        ]
+        runner.zhihu_client.post_comment.return_value = True
+
+        runner.llm_client = MagicMock()
+        runner.llm_client.generate_reply.return_value = ("回复", 50)
+        runner.llm_client.assess_risk.return_value = ("safe", "安全")
+        runner.llm_client.total_cost_usd = 0.0
+        runner.llm_client.total_prompt_tokens = 0
+        runner.llm_client.total_completion_tokens = 0
+        runner.llm_client.total_cache_hit_tokens = 0
+        runner.llm_client.model = "deepseek-chat"
+        runner.llm_client.summarize_article.return_value = ""
+
+        runner.rag_retriever = MagicMock()
+        runner.rag_retriever.retrieve.return_value = []
+
+        runner.process_article(runner.articles[0])
+
+        # 两条评论各自触发一次 retrieve
+        assert runner.rag_retriever.retrieve.call_count == 2
+        queries = [
+            call.kwargs.get("query", call[0][0] if call[0] else "")
+            for call in runner.rag_retriever.retrieve.call_args_list
+        ]
+        assert "第一条评论" in queries
+        assert "第二条评论" in queries
+
+
 # ===== 文章摘要记录测试 =====
 
 class TestArticleSummary:

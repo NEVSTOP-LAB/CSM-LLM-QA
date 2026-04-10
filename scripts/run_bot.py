@@ -312,17 +312,6 @@ class BotRunner:
         # 将摘要写入 article_meta，供线程管理器使用
         article_meta["summary"] = article_summary
 
-        # 检索文章相关 Wiki 上下文（批量复用）
-        context_chunks = []
-        if self.rag_retriever:
-            context_chunks = self.rag_retriever.retrieve(
-                query=article.get("title", ""),
-                k=self.settings.get("rag", {}).get("top_k", 3),
-                threshold=self.settings.get("rag", {}).get(
-                    "similarity_threshold", 0.72
-                ),
-            )
-
         for comment in new_comments:
             if not self._check_daily_limit():
                 break
@@ -332,7 +321,6 @@ class BotRunner:
                     article=article,
                     article_meta=article_meta,
                     comment=comment,
-                    context_chunks=context_chunks,
                     article_summary=article_summary,
                 )
                 self._consecutive_failures = 0
@@ -359,7 +347,6 @@ class BotRunner:
         article: dict,
         article_meta: dict,
         comment,
-        context_chunks: list[str],
         article_summary: str,
     ):
         """处理单条评论
@@ -368,7 +355,6 @@ class BotRunner:
             article: 文章配置
             article_meta: 文章元信息
             comment: Comment 对象
-            context_chunks: RAG 检索结果
             article_summary: 文章摘要
         """
         # 检测真人回复 → 索引
@@ -402,6 +388,18 @@ class BotRunner:
             # 超长截断
             comment_dict["content"] = (
                 self.comment_filter.truncate_if_needed(comment_dict["content"])
+            )
+
+        # 按评论内容检索 Wiki 上下文（FIX-02：每条评论独立检索，不复用文章标题）
+        # 参考: docs/plan/README.md § 流程图 "RAG 检索"节点在单条评论路径上
+        context_chunks: list[str] = []
+        if self.rag_retriever:
+            context_chunks = self.rag_retriever.retrieve(
+                query=comment_dict["content"],
+                k=self.settings.get("rag", {}).get("top_k", 3),
+                threshold=self.settings.get("rag", {}).get(
+                    "similarity_threshold", 0.72
+                ),
             )
 
         # 构建线程和历史上下文
