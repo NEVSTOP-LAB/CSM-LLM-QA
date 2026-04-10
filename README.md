@@ -1,16 +1,15 @@
 # Zhihu-CSM-Reply-Robot
 
-> 知乎 CSM（客户成功管理）专栏自动回复机器人 —— 基于 RAG + DeepSeek LLM，运行于 GitHub Actions
+> 知乎 CSM（客户成功管理）/LabVIEW 专栏自动回复机器人 —— 基于 RAG + DeepSeek LLM，运行于 GitHub Actions
 
 ---
 
 ## 功能概览
 
-- 📥 定时拉取知乎文章/问题下的新评论
-- 🔍 RAG 检索 CSM Wiki 知识库，生成专业回复
-- 🤖 调用 DeepSeek（或其他 OpenAI 兼容模型）生成回复内容
-- 📝 支持人工审核模式（回复写入 `pending/`，人工确认后发布）
-- ⚡ 支持自动发布模式（`ZHIHU_AUTO_POST=true`）
+- 📥 每15分钟定时拉取知乎文章/问题/专栏下的新评论（**不使用 LLM**，仅规则过滤，节省 token）
+- 🔍 RAG 检索 CSM Wiki 知识库，结合上下文生成专业回复
+- 🤖 调用 DeepSeek（或其他 OpenAI 兼容模型）生成回复，回复统一加 `[rob]:` 前缀标识自动回复
+- 🧠 **AI 自动风险判断**：关于 CSM/LabVIEW 的明确回复直接自动发布；LLM 判定需人工介入的高危回复才写入 `pending/`
 - 🚨 异常自动告警：Cookie 失效、429 限流、预算超限 → 创建 GitHub Issue
 - 💰 每日 LLM 费用追踪与预算限制
 - 📊 追问上下文管理（多轮对话线程）
@@ -19,38 +18,44 @@
 
 ## 快速开始
 
-### 1. Fork 或克隆仓库
+### 1. Fork 仓库
 
-```bash
-git clone https://github.com/NEVSTOP-LAB/Zhihu-CSM-Reply-Robot.git
-cd Zhihu-CSM-Reply-Robot
-```
+点击右上角 **Fork** 按钮，将仓库 Fork 到自己的 GitHub 账号下。
 
-### 2. 安装依赖
+### 2. 配置监控目标
 
-```bash
-pip install -r requirements.txt
-```
-
-### 3. 配置监控文章
-
-编辑 `config/articles.yaml`，添加需要监控的知乎文章或问题：
+编辑 `config/articles.yaml`，支持监控**单篇文章、知乎问题、整个专栏，或某人发布的所有回答**：
 
 ```yaml
 articles:
+  # 单篇专栏文章
   - id: "98765432"
     title: "CSM 最佳实践系列（一）"
     url: "https://zhuanlan.zhihu.com/p/98765432"
-    type: "article"       # article（专栏文章）或 question（知乎问题）
+    type: "article"
+
+  # 知乎问题（监控该问题下所有回答的评论）
   - id: "123456789"
     title: "如何做好客户成功？"
     url: "https://www.zhihu.com/question/123456789"
     type: "question"
+
+  # 整个专栏（自动监控专栏内全部文章）
+  - id: "csm-practice"
+    title: "CSM 实践专栏"
+    url: "https://www.zhihu.com/column/csm-practice"
+    type: "column"
+
+  # 某人发布的全部回答
+  - id: "nevstop"
+    title: "nevstop 的全部回答"
+    url: "https://www.zhihu.com/people/nevstop/answers"
+    type: "user_answers"
 ```
 
-### 4. 准备 CSM Wiki 知识库
+### 3. 准备 CSM Wiki 知识库
 
-将 Markdown 格式的 CSM 知识文档放入 `csm-wiki/` 目录：
+将 Markdown 格式的 CSM/LabVIEW 知识文档放入 `csm-wiki/` 目录：
 
 ```
 csm-wiki/
@@ -60,37 +65,36 @@ csm-wiki/
 └── ...
 ```
 
-### 5. 配置 GitHub Secrets
+### 4. 配置 GitHub Secrets
 
 在仓库 **Settings → Secrets and variables → Actions** 中添加以下 Secrets：
 
 | Secret 名称 | 必填 | 说明 |
 |---|---|---|
 | `ZHIHU_COOKIE` | ✅ | 知乎完整 Cookie 字符串（含 `z_c0` 和 `_xsrf`） |
-| `LLM_API_KEY` | ✅ | DeepSeek 或 OpenAI API Key |
-| `LLM_BASE_URL` | ❌ | API 端点，默认 `https://api.deepseek.com` |
+| `LLM_API_KEY` | ✅ | DeepSeek 或 OpenAI 兼容服务的 API Key |
+| `LLM_BASE_URL` | ❌ | LLM API 端点，默认 `https://api.deepseek.com` |
 | `LLM_MODEL` | ❌ | 模型名称，默认 `deepseek-chat` |
-| `ZHIHU_AUTO_POST` | ❌ | 设为 `true` 启用自动发布，否则写入 `pending/` 待审核 |
+| `GITHUB_TOKEN` | 自动 | GitHub Actions 自动注入，用于告警创建 Issue |
+
+> **说明**：以上所有敏感信息（Cookie、LLM Key 等）均通过 GitHub Secrets 传入，不在代码或配置文件中明文保存。
 
 #### 获取知乎 Cookie
 
 1. 浏览器登录知乎
-2. 打开开发者工具 → Network → 任意知乎请求
-3. 复制请求头中完整的 `Cookie` 字段值
+2. 打开开发者工具（F12）→ Network 面板 → 刷新页面
+3. 点击任意知乎请求 → Headers → 复制 `Cookie` 字段的完整值
 
-### 6. 调整运行参数（可选）
+### 5. 调整运行参数（可选）
 
 编辑 `config/settings.yaml`：
 
 ```yaml
 bot:
-  check_interval_hours: 6          # 检查间隔（与 cron 表达式对应）
   max_new_comments_per_run: 20     # 每次最多处理条数
   max_new_comments_per_day: 100    # 每日上限
   llm_budget_usd_per_day: 0.50    # 每日 LLM 费用预算（超出后停止并告警）
-
-review:
-  manual_mode: true                # true=人工审核模式；false=自动发布
+  reply_prefix: "[rob]"            # 回复前缀，让用户知道这是自动回复
 
 filter:
   spam_keywords:                   # 广告关键词（命中则跳过）
@@ -100,35 +104,31 @@ filter:
 
 ---
 
-## 运行方式
+## GitHub Actions 配置
 
-### GitHub Actions（推荐）
-
-仓库内置两个 Workflow：
+仓库内置两个 Workflow，Fork 后即可直接使用：
 
 | Workflow | 触发方式 | 功能 |
 |---|---|---|
-| `bot.yml` | 每6小时 + 手动触发 | 拉取评论 → 生成回复 → 写入 pending/ |
+| `bot.yml` | **每15分钟** + 手动触发 | 拉取评论 → AI生成回复 → 自动发布或写入 pending/ |
 | `sync-wiki.yml` | 每周日 + 手动触发 | 增量同步 CSM Wiki 向量库 |
 
-**手动触发**：仓库页面 → **Actions** → 选择 Workflow → **Run workflow**
+### bot.yml 所需 Secrets
 
-### 本地运行
-
-```bash
-# 设置环境变量
-export ZHIHU_COOKIE="z_c0=xxx; _xsrf=yyy; ..."
-export LLM_API_KEY="sk-xxx"
-export LLM_BASE_URL="https://api.deepseek.com"   # 可选
-export LLM_MODEL="deepseek-chat"                  # 可选
-
-# 运行机器人
-python scripts/run_bot.py
-
-# 手动同步 Wiki（强制重建向量库）
-python scripts/wiki_sync.py
-FORCE_REBUILD=true python scripts/wiki_sync.py
+```yaml
+env:
+  ZHIHU_COOKIE:   ${{ secrets.ZHIHU_COOKIE }}    # 知乎 Cookie（必填）
+  LLM_API_KEY:    ${{ secrets.LLM_API_KEY }}      # LLM API Key（必填）
+  LLM_BASE_URL:   ${{ secrets.LLM_BASE_URL }}     # LLM 端点（可选）
+  LLM_MODEL:      ${{ secrets.LLM_MODEL }}        # 模型名称（可选）
+  GITHUB_TOKEN:   ${{ secrets.GITHUB_TOKEN }}     # 自动注入，用于告警
 ```
+
+### 启用 / 停用 Workflow
+
+- 启用：仓库页面 → **Actions** → 选择 Workflow → **Enable workflow**
+- 手动触发：Actions → 选择 Workflow → **Run workflow**
+- 停用：Actions → 选择 Workflow → **Disable workflow**
 
 ---
 
@@ -137,17 +137,17 @@ FORCE_REBUILD=true python scripts/wiki_sync.py
 ```
 Zhihu-CSM-Reply-Robot/
 ├── .github/workflows/
-│   ├── bot.yml              # 主 Workflow（定时回复）
+│   ├── bot.yml              # 主 Workflow（每15分钟定时回复）
 │   └── sync-wiki.yml        # Wiki 同步 Workflow
 ├── config/
 │   ├── settings.yaml        # 全局运行参数
-│   └── articles.yaml        # 监控文章列表
-├── csm-wiki/                # CSM 知识库 Markdown 文档（自行添加）
+│   └── articles.yaml        # 监控目标列表（文章/问题/专栏/用户）
+├── csm-wiki/                # CSM/LabVIEW 知识库 Markdown 文档（自行添加）
 ├── data/
 │   ├── seen_ids.json        # 已处理评论 ID 记录
 │   ├── vector_store/        # ChromaDB 向量库（自动生成）
 │   └── reply_index/         # 历史回复向量索引
-├── pending/                 # 待审核回复（人工审核模式）
+├── pending/                 # AI 判定需人工审核的高危回复
 ├── archive/                 # 已发布/归档回复
 ├── scripts/
 │   ├── run_bot.py           # 主入口
@@ -165,30 +165,31 @@ Zhihu-CSM-Reply-Robot/
 
 ---
 
-## 人工审核流程
+## 回复发布流程
 
-当 `review.manual_mode: true`（默认）时，机器人不直接发布回复，而是写入 `pending/` 目录：
+机器人采用 **AI 自动风险判断**，而非全量人工审核：
 
 ```
-pending/
-└── 2024-04-10_comment_12345678.md   ← 待审核回复
+新评论
+  │
+  ▼
+规则过滤（垃圾/广告/重复）
+  │  不使用 LLM，节省 token
+  ▼
+RAG 检索知识库 + LLM 生成回复
+  │  回复统一加 [rob]: 前缀
+  ▼
+LLM 风险评估
+  ├─ 明确的 CSM/LabVIEW 回复 ──→ 直接自动发布 ✅
+  └─ 需人工判断（敏感/超出知识库）──→ 写入 pending/ 等待审核 📝
 ```
 
-每个文件包含 YAML front-matter 和回复正文：
+**审核并发布 pending/ 中的回复**：
 
-```markdown
----
-article_id: "98765432"
-comment_id: "12345678"
-commenter: "知乎用户"
-status: pending
-generated_at: "2024-04-10T10:00:00"
----
-
-您好！关于 CSM 的核心概念...
-```
-
-**审核并发布**：将文件中 `status: pending` 改为 `status: approved`，下次 Workflow 运行时自动发布。
+1. 打开 `pending/` 目录中对应的 `.md` 文件
+2. 修改内容（可选）
+3. 将文件中 `status: pending` 改为 `status: approved`
+4. 提交到仓库，下次 Workflow 运行时自动发布
 
 ---
 
@@ -208,6 +209,9 @@ generated_at: "2024-04-10T10:00:00"
 ## 开发与测试
 
 ```bash
+# 安装依赖
+pip install -r requirements.txt
+
 # 运行全部测试
 python -m pytest tests/ -v
 
