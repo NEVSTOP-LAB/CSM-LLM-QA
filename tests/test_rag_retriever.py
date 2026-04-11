@@ -412,6 +412,41 @@ class TestEmbeddingFunction:
         ef = EmbeddingFunction(use_online=False)
         assert ef.use_online is False
 
+    def test_cache_folder_param(self, tmp_path):
+        """显式传入 cache_folder 应被保存"""
+        cache_dir = str(tmp_path / "test_hf_cache")
+        ef = EmbeddingFunction(cache_folder=cache_dir)
+        assert ef.cache_folder == cache_dir
+
+    def test_cache_folder_env_var(self, monkeypatch, tmp_path):
+        """SENTENCE_TRANSFORMERS_HOME 环境变量应作为 cache_folder 默认值"""
+        cache_dir = str(tmp_path / "env_hf_cache")
+        monkeypatch.setenv("SENTENCE_TRANSFORMERS_HOME", cache_dir)
+        ef = EmbeddingFunction()
+        assert ef.cache_folder == cache_dir
+
+    def test_cache_folder_param_overrides_env(self, monkeypatch, tmp_path):
+        """显式 cache_folder 应优先于 SENTENCE_TRANSFORMERS_HOME"""
+        env_dir = str(tmp_path / "env_hf_cache")
+        explicit_dir = str(tmp_path / "explicit_cache")
+        monkeypatch.setenv("SENTENCE_TRANSFORMERS_HOME", env_dir)
+        ef = EmbeddingFunction(cache_folder=explicit_dir)
+        assert ef.cache_folder == explicit_dir
+
+    def test_cache_folder_passed_to_sentence_transformer(self, tmp_path):
+        """cache_folder 应传递给 SentenceTransformer 构造函数"""
+        cache_dir = str(tmp_path / "st_cache")
+        ef = EmbeddingFunction(use_online=False, cache_folder=cache_dir)
+        ef._local_model = None
+
+        mock_model = MagicMock()
+        mock_model.encode.return_value = [[0.1] * 128]
+
+        with patch("sentence_transformers.SentenceTransformer", return_value=mock_model) as mock_st:
+            ef._get_local_model()
+
+        mock_st.assert_called_once_with("BAAI/bge-small-zh-v1.5", cache_folder=cache_dir)
+
     def test_online_mode_flag(self):
         """线上模式标志应正确设置"""
         ef = EmbeddingFunction(use_online=True)
