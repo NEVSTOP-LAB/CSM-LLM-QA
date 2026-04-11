@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from scripts.run_bot import BotRunner
+from scripts.run_bot import BotRunner, RecentLogsHandler
 from scripts.zhihu_client import Comment, ZhihuAuthError, ZhihuRateLimitError
 from scripts.llm_client import BudgetExceededError
 
@@ -1570,3 +1570,95 @@ class TestCommentThreadMap:
         runner._get_thread_root_id(c4)
         # 路径压缩后，c3 应直接指向 c1
         assert runner._comment_thread_map.get("c3") == "c1"
+
+
+# ===== RecentLogsHandler 测试 =====
+
+class TestRecentLogsHandler:
+    """验证内存日志缓冲处理器"""
+
+    def test_captures_log_records(self):
+        """发出的日志记录应被捕获到内部缓冲区"""
+        import logging
+        handler = RecentLogsHandler(maxlen=10)
+        log = logging.getLogger("test.recent_logs_handler")
+        log.addHandler(handler)
+        log.setLevel(logging.DEBUG)
+        try:
+            log.error("测试错误信息")
+        finally:
+            log.removeHandler(handler)
+
+        result = handler.format_markdown(10)
+        assert "测试错误信息" in result
+
+    def test_maxlen_respected(self):
+        """超过 maxlen 时旧记录应被丢弃"""
+        import logging
+        handler = RecentLogsHandler(maxlen=3)
+        log = logging.getLogger("test.maxlen")
+        log.addHandler(handler)
+        log.setLevel(logging.DEBUG)
+        try:
+            for i in range(5):
+                log.info(f"消息{i}")
+        finally:
+            log.removeHandler(handler)
+
+        result = handler.format_markdown(10)
+        # 只应保留最后 3 条（消息2、消息3、消息4）
+        assert "消息0" not in result
+        assert "消息1" not in result
+        assert "消息4" in result
+
+    def test_format_markdown_empty(self):
+        """无日志时 format_markdown 应返回空字符串"""
+        handler = RecentLogsHandler()
+        assert handler.format_markdown() == ""
+
+    def test_format_markdown_contains_code_block(self):
+        """有日志时 format_markdown 应返回 Markdown 代码块"""
+        import logging
+        handler = RecentLogsHandler()
+        log = logging.getLogger("test.codeblock")
+        log.addHandler(handler)
+        log.setLevel(logging.DEBUG)
+        try:
+            log.warning("告警消息")
+        finally:
+            log.removeHandler(handler)
+
+        result = handler.format_markdown()
+        assert result.startswith("```")
+        assert result.endswith("```")
+
+    def test_consecutive_failures_alert_includes_logs(self, runner, bot_root):
+        """连续失败告警时应将内存日志传入 alert_consecutive_failures"""
+        runner.load_config()
+        runner.init_modules()
+
+        # 注入必要 mock
+        runner.zhihu_client = MagicMock()
+        # 使用不同作者避免 dedup 过滤（dedup_window_minutes 按 author 去重）
+        runner.zhihu_client.get_comments.return_value = [
+            _make_comment("fail_1", "评论A", author="user_a"),
+            _make_comment("fail_2", "评论B", author="user_b"),
+            _make_comment("fail_3", "评论C", author="user_c"),
+        ]
+        runner.llm_client = MagicMock()
+        runner.llm_client.generate_reply.side_effect = Exception("模拟处理失败")
+        runner.llm_client.model = "deepseek-chat"
+        runner.llm_client.summarize_article.return_value = ""
+        runner.rag_retriever = MagicMock()
+        runner.rag_retriever.retrieve.return_value = []
+        runner.alert_manager = MagicMock()
+
+        runner.load_seen_ids()
+        runner._bootstrapped_articles.add("99999")
+        runner.run_articles()
+
+        # alert_consecutive_failures 应被调用，且 recent_logs 参数非空
+        runner.alert_manager.alert_consecutive_failures.assert_called_once()
+        call_kwargs = runner.alert_manager.alert_consecutive_failures.call_args
+        recent_logs = call_kwargs.kwargs.get("recent_logs", "")
+        assert recent_logs, "recent_logs 应非空，以便 Issue 包含最近日志"

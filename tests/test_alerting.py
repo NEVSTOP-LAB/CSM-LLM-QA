@@ -185,6 +185,33 @@ class TestAlertScenarios:
         assert "5" in payload["title"]
         assert "failure" in payload["labels"]
 
+    def test_alert_consecutive_failures_with_logs(self, manager):
+        """连续失败告警应在 Issue 正文中包含最近日志"""
+        sample_logs = "```\n2026-01-01 [ERROR] 处理评论失败: timeout\n```"
+        with patch.object(
+            manager._session, "get", side_effect=_mock_get_no_issues
+        ), patch.object(
+            manager._session, "post", side_effect=_mock_post_success
+        ) as mock_post:
+            manager.alert_consecutive_failures(count=3, recent_logs=sample_logs)
+
+        payload = mock_post.call_args[1]["json"]
+        assert "3" in payload["title"]
+        assert "最近日志" in payload["body"]
+        assert "timeout" in payload["body"]
+
+    def test_alert_consecutive_failures_no_logs(self, manager):
+        """不传日志时 Issue 正文不应包含日志节（保持向后兼容）"""
+        with patch.object(
+            manager._session, "get", side_effect=_mock_get_no_issues
+        ), patch.object(
+            manager._session, "post", side_effect=_mock_post_success
+        ) as mock_post:
+            manager.alert_consecutive_failures(count=3)
+
+        payload = mock_post.call_args[1]["json"]
+        assert "最近日志" not in payload["body"]
+
 
 # ===== 健康状态记录测试 =====
 

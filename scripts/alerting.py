@@ -208,11 +208,12 @@ class AlertManager:
         )
         self.create_issue(title, body, labels=["bot-alert", "budget"])
 
-    def alert_consecutive_failures(self, count: int):
+    def alert_consecutive_failures(self, count: int, recent_logs: str = ""):
         """连续失败告警
 
         Args:
             count: 连续失败次数
+            recent_logs: 最近日志内容（Markdown 格式），用于快速定位问题
         """
         title = f"🔴 Bot Alert: 连续失败 {count} 次"
         body = (
@@ -221,6 +222,8 @@ class AlertManager:
             f"- **时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
             f"Bot 已暂停处理，请检查日志。\n"
         )
+        if recent_logs:
+            body += f"\n### 最近日志\n\n{recent_logs}\n"
         self.create_issue(title, body, labels=["bot-alert", "failure"])
 
     def record_health(self, status: str, details: dict | None = None):

@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import sys
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -41,6 +42,38 @@ from scripts.alerting import AlertManager
 from scripts.cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
+
+
+class RecentLogsHandler(logging.Handler):
+    """内存日志缓冲处理器，保存最近 N 条格式化日志记录
+
+    实施计划关联：AI-010 告警模块
+
+    在告警 Issue 创建时附带最近日志，方便快速定位问题。
+
+    Args:
+        maxlen: 最多保留的日志条数
+    """
+
+    _LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+    def __init__(self, maxlen: int = 100):
+        super().__init__()
+        self._records: deque[str] = deque(maxlen=maxlen)
+        self.setFormatter(logging.Formatter(self._LOG_FORMAT))
+
+    def emit(self, record: logging.LogRecord):
+        try:
+            self._records.append(self.format(record))
+        except Exception:
+            self.handleError(record)
+
+    def format_markdown(self, n: int = 50) -> str:
+        """返回 Markdown 代码块格式的最近 n 条日志"""
+        logs = list(self._records)[-n:]
+        if not logs:
+            return ""
+        return "```\n" + "\n".join(logs) + "\n```"
 
 
 class BotRunner:
@@ -83,6 +116,10 @@ class BotRunner:
         # 用于在多级嵌套回复中正确追溯到最顶层的根评论，将同一对话归入同一线程文件
         self._comment_thread_map: dict[str, str] = {}
         self._comment_thread_map_path = self.root / "data" / "comment_thread_map.json"
+
+        # 内存日志缓冲（用于告警 Issue 附带最近日志，方便快速定位问题）
+        self._log_handler = RecentLogsHandler(maxlen=100)
+        logging.getLogger().addHandler(self._log_handler)
 
     def load_config(self):
         """加载配置文件
@@ -462,7 +499,8 @@ class BotRunner:
                     logger.error(f"连续失败 {self._consecutive_failures} 次，暂停")
                     if self.alert_manager:
                         self.alert_manager.alert_consecutive_failures(
-                            self._consecutive_failures
+                            self._consecutive_failures,
+                            recent_logs=self._log_handler.format_markdown(50),
                         )
                     break
 
