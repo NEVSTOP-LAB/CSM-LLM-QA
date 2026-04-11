@@ -55,19 +55,28 @@ class EmbeddingFunction:
         use_online: bool = False,
         model_name: str = "BAAI/bge-small-zh-v1.5",
         online_model: str = "text-embedding-3-small",
+        cache_folder: Optional[str] = None,
     ):
         self.use_online = use_online
         self._local_model = None
         self._online_client = None
         self.model_name = model_name
         self.online_model = online_model
+        # 优先使用传入的 cache_folder，其次读取 SENTENCE_TRANSFORMERS_HOME 环境变量
+        # 参考：docs/plan/README.md § AI-005 Embedding 缓存优化
+        self.cache_folder = cache_folder or os.environ.get("SENTENCE_TRANSFORMERS_HOME")
 
     def _get_local_model(self):
-        """延迟加载本地 Embedding 模型"""
+        """延迟加载本地 Embedding 模型（使用本地缓存目录避免重复下载）"""
         if self._local_model is None:
             from sentence_transformers import SentenceTransformer
-            logger.info(f"加载本地 Embedding 模型: {self.model_name}")
-            self._local_model = SentenceTransformer(self.model_name)
+            logger.info(
+                f"加载本地 Embedding 模型: {self.model_name}"
+                + (f"，缓存目录: {self.cache_folder}" if self.cache_folder else "")
+            )
+            self._local_model = SentenceTransformer(
+                self.model_name, cache_folder=self.cache_folder
+            )
         return self._local_model
 
     def _get_online_client(self):
