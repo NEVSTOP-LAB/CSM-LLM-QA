@@ -284,6 +284,38 @@ class TestBootstrapMode:
 
         runner.alert_manager.alert_cookie_expired.assert_called_once()
 
+    def test_bootstrap_rate_limit_triggers_alert(self, runner, bot_root):
+        """冷启动时限流应触发告警并终止（Issue review feedback）"""
+        runner.load_config()
+        runner.init_modules()
+
+        runner.zhihu_client = MagicMock()
+        runner.zhihu_client.get_comments.side_effect = ZhihuRateLimitError("限流")
+        runner.llm_client = MagicMock()
+        runner.rag_retriever = MagicMock()
+        runner.alert_manager = MagicMock()
+
+        runner.load_seen_ids()
+        runner.run_articles()
+
+        runner.alert_manager.alert_rate_limited.assert_called_once()
+
+    def test_bootstrap_generic_failure_does_not_mark_bootstrapped(self, runner, bot_root):
+        """冷启动时发生通用异常后，文章不应被标记为已归档（避免跳过重试）"""
+        runner.load_config()
+        runner.init_modules()
+
+        runner.zhihu_client = MagicMock()
+        runner.zhihu_client.get_comments.side_effect = Exception("临时网络错误")
+        runner.llm_client = MagicMock()
+        runner.rag_retriever = MagicMock()
+
+        runner.load_seen_ids()
+        runner.run_articles()
+
+        # 文章不应被标记为已归档，以便下次运行时可以重试
+        assert "99999" not in runner._bootstrapped_articles
+
 
 # ===== 文章处理测试 =====
 
@@ -1497,3 +1529,44 @@ class TestCommentThreadMap:
         runner.load_config()
         runner.load_comment_thread_map()
         assert runner._comment_thread_map == {}
+
+    def test_deep_chain_resolved_to_root(self, runner, bot_root):
+        """深层嵌套回复链应迭代追溯到最终根，而非仅做一次跳转"""
+        runner.load_config()
+        # chain: c4 → c3 → c2 → c1 → c1（c1 是根）
+        runner._comment_thread_map = {
+            "c1": "c1",
+            "c2": "c1",
+            "c3": "c2",   # 指向中间节点，仅做一次跳转时会返回 c2 而非 c1
+        }
+        deep = _make_comment("c4", "深层回复", parent_id="c3")
+        thread_root = runner._get_thread_root_id(deep)
+        assert thread_root == "c1", (
+            f"深层回复链应追溯到真正的根 c1，但得到 {thread_root!r}"
+        )
+
+    def test_cycle_in_map_does_not_loop_forever(self, runner, bot_root):
+        """映射中存在循环时，_get_thread_root_id 应安全返回而不死循环"""
+        runner.load_config()
+        # 人工构造一个损坏的循环映射
+        runner._comment_thread_map = {
+            "x": "y",
+            "y": "x",
+        }
+        cycle = _make_comment("z", "某评论", parent_id="x")
+        # 不应死循环，应返回某个非空字符串
+        result = runner._get_thread_root_id(cycle)
+        assert isinstance(result, str) and result != ""
+
+    def test_path_compression_applied(self, runner, bot_root):
+        """路径压缩：查询后中间节点应直接指向最终根"""
+        runner.load_config()
+        runner._comment_thread_map = {
+            "c1": "c1",
+            "c2": "c1",
+            "c3": "c2",  # 未压缩时 c3 指向 c2，压缩后应指向 c1
+        }
+        c4 = _make_comment("c4", "深层", parent_id="c3")
+        runner._get_thread_root_id(c4)
+        # 路径压缩后，c3 应直接指向 c1
+        assert runner._comment_thread_map.get("c3") == "c1"

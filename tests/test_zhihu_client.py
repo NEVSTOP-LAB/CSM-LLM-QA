@@ -531,11 +531,19 @@ class TestCookieIsolation:
         with patch.object(client.read_session, "request", return_value=resp) as mock_req:
             client.get_comments("99999", "article")
 
-        call_kwargs = mock_req.call_args[1] if mock_req.call_args else {}
-        # read_session 本身不含 Cookie 头；验证 Cookie 不在运行时 headers 中
-        merged_headers = dict(client.read_session.headers)
-        assert "Cookie" not in merged_headers, (
+        # 验证确实通过 read_session 发起了请求
+        mock_req.assert_called_once()
+
+        # read_session 的永久请求头中不应存在 Cookie
+        assert "Cookie" not in client.read_session.headers, (
             "read_session 不应包含 Cookie 头"
+        )
+
+        # 验证运行时传入的额外 headers 参数（若有）中也不含 Cookie
+        call_kwargs = mock_req.call_args[1] if mock_req.call_args else {}
+        extra_headers = call_kwargs.get("headers", {}) or {}
+        assert "Cookie" not in extra_headers, (
+            "get_comments 调用时不应在 headers 参数中传递 Cookie"
         )
 
     @patch("scripts.zhihu_client.time.sleep")
