@@ -147,7 +147,7 @@ class TestGetComments:
             "paging": {"is_end": True, "next": ""},
         })
 
-        with patch.object(client.session, "request", return_value=resp):
+        with patch.object(client.read_session, "request", return_value=resp):
             result = client.get_comments("99999", "article")
 
         assert len(result) == 2
@@ -172,7 +172,7 @@ class TestGetComments:
         })
 
         with patch.object(
-            client.session, "request", side_effect=[page1, page2]
+            client.read_session, "request", side_effect=[page1, page2]
         ):
             result = client.get_comments("99", "article")
 
@@ -190,7 +190,7 @@ class TestGetComments:
             "paging": {"is_end": True},
         })
 
-        with patch.object(client.session, "request", return_value=resp) as mock_req:
+        with patch.object(client.read_session, "request", return_value=resp) as mock_req:
             result = client.get_comments("55555", "question")
 
         assert len(result) == 1
@@ -207,7 +207,7 @@ class TestGetComments:
             "paging": {"is_end": True},
         })
 
-        with patch.object(client.session, "request", return_value=resp):
+        with patch.object(client.read_session, "request", return_value=resp):
             result = client.get_comments("99", "article")
 
         assert result == []
@@ -223,7 +223,7 @@ class TestAuthErrors:
         """401 响应应抛出 ZhihuAuthError"""
         resp = _make_response(401)
 
-        with patch.object(client.session, "request", return_value=resp):
+        with patch.object(client.read_session, "request", return_value=resp):
             with pytest.raises(ZhihuAuthError, match="认证失败"):
                 client.get_comments("99", "article")
 
@@ -232,7 +232,7 @@ class TestAuthErrors:
         """403 响应应抛出 ZhihuAuthError 并携带 status_code=403（FIX-11）"""
         resp = _make_response(403)
 
-        with patch.object(client.session, "request", return_value=resp):
+        with patch.object(client.read_session, "request", return_value=resp):
             with pytest.raises(ZhihuAuthError) as exc_info:
                 client.get_comments("99", "article")
 
@@ -243,7 +243,7 @@ class TestAuthErrors:
         """401 ZhihuAuthError 应携带 status_code=401（FIX-11）"""
         resp = _make_response(401)
 
-        with patch.object(client.session, "request", return_value=resp):
+        with patch.object(client.read_session, "request", return_value=resp):
             with pytest.raises(ZhihuAuthError) as exc_info:
                 client.get_comments("99", "article")
 
@@ -265,7 +265,7 @@ class TestRateLimit:
         })
 
         with patch.object(
-            client.session, "request", side_effect=[resp_429, resp_429, resp_ok]
+            client.read_session, "request", side_effect=[resp_429, resp_429, resp_ok]
         ):
             result = client.get_comments("99", "article")
 
@@ -280,7 +280,7 @@ class TestRateLimit:
         resp_429 = _make_response(429)
 
         with patch.object(
-            client.session, "request", return_value=resp_429
+            client.read_session, "request", return_value=resp_429
         ):
             with pytest.raises(ZhihuRateLimitError, match="重试"):
                 client.get_comments("99", "article")
@@ -289,7 +289,7 @@ class TestRateLimit:
     def test_network_error_raises_request_error(self, mock_sleep, client):
         """网络类异常耗尽重试后应抛出 ZhihuRequestError 而非 ZhihuRateLimitError（FIX-10）"""
         with patch.object(
-            client.session, "request",
+            client.read_session, "request",
             side_effect=requests.exceptions.ConnectionError("DNS 失败")
         ):
             with pytest.raises(ZhihuRequestError):
@@ -299,7 +299,7 @@ class TestRateLimit:
     def test_timeout_error_raises_request_error(self, mock_sleep, client):
         """超时异常耗尽重试后应抛出 ZhihuRequestError（FIX-10）"""
         with patch.object(
-            client.session, "request",
+            client.read_session, "request",
             side_effect=requests.exceptions.Timeout("请求超时")
         ):
             with pytest.raises(ZhihuRequestError):
@@ -313,7 +313,7 @@ class TestRateLimit:
             "500 Server Error"
         )
 
-        with patch.object(client.session, "request", return_value=resp_500):
+        with patch.object(client.read_session, "request", return_value=resp_500):
             with pytest.raises(ZhihuRequestError, match="HTTP"):
                 client.get_comments("99", "article")
 
@@ -321,7 +321,7 @@ class TestRateLimit:
     def test_network_error_message_says_network(self, mock_sleep, client):
         """纯网络异常的错误信息应包含'网络'（REV-4：错误文案区分）"""
         with patch.object(
-            client.session, "request",
+            client.read_session, "request",
             side_effect=requests.exceptions.ConnectionError("网络中断")
         ):
             with pytest.raises(ZhihuRequestError, match="网络"):
@@ -468,7 +468,7 @@ class TestGetQuestionAnswers:
             "paging": {"is_end": True},
         })
 
-        with patch.object(client.session, "request", return_value=resp):
+        with patch.object(client.read_session, "request", return_value=resp):
             result = client.get_question_answers("99999")
 
         assert len(result) == 1
@@ -485,7 +485,7 @@ class TestGetQuestionAnswers:
             "paging": {"is_end": True},
         })
 
-        with patch.object(client.session, "request", return_value=resp) as mock_req:
+        with patch.object(client.read_session, "request", return_value=resp) as mock_req:
             client.get_question_answers("12345")
 
         call_args = mock_req.call_args
@@ -504,7 +504,102 @@ class TestGetQuestionAnswers:
             "paging": {"is_end": True},
         })
 
-        with patch.object(client.session, "request", return_value=resp):
+        with patch.object(client.read_session, "request", return_value=resp):
             result = client.get_user_answers("some_user")
 
         assert result[0]["type"] == "answer"
+
+
+# ===== Cookie 隔离测试（Issue #2）=====
+
+class TestCookieIsolation:
+    """验证读操作不携带 Cookie、写操作携带 Cookie（Issue #2）
+
+    知乎不登录即可查看文章和评论，只有回复时才需要 Cookie。
+    通过分离 read_session（无 Cookie）和 write_session（含 Cookie），
+    可以降低被反爬追踪的风险。
+    """
+
+    @patch("scripts.zhihu_client.time.sleep")
+    def test_get_comments_does_not_send_cookie(self, mock_sleep, client):
+        """get_comments 请求不应包含 Cookie 头（read_session）"""
+        resp = _make_response(200, {
+            "data": [],
+            "paging": {"is_end": True},
+        })
+
+        with patch.object(client.read_session, "request", return_value=resp) as mock_req:
+            client.get_comments("99999", "article")
+
+        call_kwargs = mock_req.call_args[1] if mock_req.call_args else {}
+        # read_session 本身不含 Cookie 头；验证 Cookie 不在运行时 headers 中
+        merged_headers = dict(client.read_session.headers)
+        assert "Cookie" not in merged_headers, (
+            "read_session 不应包含 Cookie 头"
+        )
+
+    @patch("scripts.zhihu_client.time.sleep")
+    def test_post_comment_sends_cookie(self, mock_sleep, client):
+        """post_comment 请求应使用含 Cookie 的 write_session"""
+        resp = _make_response(201, {"id": "new_comment"})
+
+        with patch.object(client.write_session, "request", return_value=resp) as mock_req:
+            client.post_comment("99", "article", "回复内容")
+
+        mock_req.assert_called_once()
+        # write_session 应含 Cookie
+        assert "Cookie" in client.write_session.headers, (
+            "write_session 应包含 Cookie 头"
+        )
+
+    @patch("scripts.zhihu_client.time.sleep")
+    def test_get_column_articles_uses_read_session(self, mock_sleep, client):
+        """get_column_articles 应使用 read_session（无 Cookie）"""
+        resp = _make_response(200, {
+            "data": [],
+            "paging": {"is_end": True},
+        })
+
+        with patch.object(client.read_session, "request", return_value=resp) as mock_req:
+            client.get_column_articles("some-column")
+
+        mock_req.assert_called_once()
+
+    @patch("scripts.zhihu_client.time.sleep")
+    def test_get_user_answers_uses_read_session(self, mock_sleep, client):
+        """get_user_answers 应使用 read_session（无 Cookie）"""
+        resp = _make_response(200, {
+            "data": [],
+            "paging": {"is_end": True},
+        })
+
+        with patch.object(client.read_session, "request", return_value=resp) as mock_req:
+            client.get_user_answers("some_user")
+
+        mock_req.assert_called_once()
+
+    @patch("scripts.zhihu_client.time.sleep")
+    def test_get_question_answers_uses_read_session(self, mock_sleep, client):
+        """get_question_answers 应使用 read_session（无 Cookie）"""
+        resp = _make_response(200, {
+            "data": [],
+            "paging": {"is_end": True},
+        })
+
+        with patch.object(client.read_session, "request", return_value=resp) as mock_req:
+            client.get_question_answers("12345")
+
+        mock_req.assert_called_once()
+
+    def test_read_session_has_no_cookie_header(self, client):
+        """read_session 不应设置 Cookie 头"""
+        assert "Cookie" not in client.read_session.headers
+
+    def test_write_session_has_cookie_header(self, client):
+        """write_session 应包含 Cookie 头"""
+        assert "Cookie" in client.write_session.headers
+        assert client.write_session.headers["Cookie"] == SAMPLE_COOKIE.strip()
+
+    def test_read_write_sessions_are_different_objects(self, client):
+        """read_session 和 write_session 应是不同的 Session 对象"""
+        assert client.read_session is not client.write_session

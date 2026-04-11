@@ -137,9 +137,19 @@ class ZhihuClient:
         self.cookie = cookie
         self.max_retries = max_retries
         self._xsrf = self._extract_xsrf(cookie)
-        self.session = requests.Session()
-        self.session.headers.update(self.DEFAULT_HEADERS)
-        self.session.headers["Cookie"] = cookie
+
+        # Issue #2：分离读/写 Session，降低反爬追踪风险
+        # read_session：仅携带浏览器指纹，不含 Cookie；用于读取评论等公开内容
+        # write_session：携带 Cookie + CSRF；仅用于发布评论等需认证的操作
+        self.read_session = requests.Session()
+        self.read_session.headers.update(self.DEFAULT_HEADERS)
+
+        self.write_session = requests.Session()
+        self.write_session.headers.update(self.DEFAULT_HEADERS)
+        self.write_session.headers["Cookie"] = cookie
+
+        # 保留 self.session 为 write_session 的别名，兼容外部代码
+        self.session = self.write_session
 
         logger.info("ZhihuClient 初始化完成，_xsrf=%s...", self._xsrf[:8] if self._xsrf else "N/A")
 
@@ -183,7 +193,13 @@ class ZhihuClient:
                 f"不支持的 object_type: {object_type}，应为 'article'、'answer' 或 'question'"
             )
 
-    def _request_with_retry(self, method: str, url: str, **kwargs) -> requests.Response:
+    def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        session: Optional[requests.Session] = None,
+        **kwargs,
+    ) -> requests.Response:
         """
         带指数退避重试的 HTTP 请求
         参考: docs/plan/README.md § AI-003 第 2 点 — 429 指数退避重试最多 3 次
@@ -191,6 +207,8 @@ class ZhihuClient:
         Args:
             method: HTTP 方法（GET/POST）
             url: 请求 URL
+            session: 使用的 Session（默认为 self.write_session）
+                     读操作传入 self.read_session，写操作传入 self.write_session
             **kwargs: requests 参数
 
         Returns:
@@ -201,11 +219,13 @@ class ZhihuClient:
             ZhihuRateLimitError: 429 重试耗尽仍限流
             ZhihuRequestError: 其他请求失败（HTTP 5xx、网络连接/超时等）
         """
+        if session is None:
+            session = self.write_session
         last_exception: Optional[Exception] = None
 
         for attempt in range(self.max_retries):
             try:
-                response = self.session.request(method, url, **kwargs)
+                response = session.request(method, url, **kwargs)
 
                 # 认证失败 → 立即抛出，不重试
                 if response.status_code in (401, 403):
@@ -308,7 +328,7 @@ class ZhihuClient:
             time.sleep(delay)
 
             logger.debug("请求评论: %s offset=%d", base_url, offset)
-            response = self._request_with_retry("GET", base_url, params=params)
+            response = self._request_with_retry("GET", base_url, params=params, session=self.read_session)
             data = response.json()
 
             comments_data = data.get("data", [])
@@ -418,7 +438,7 @@ class ZhihuClient:
         }
 
         try:
-            response = self._request_with_retry("POST", url, json=payload, headers=headers)
+            response = self._request_with_retry("POST", url, session=self.write_session, json=payload, headers=headers)
             if response.status_code in (200, 201):
                 logger.info("评论发布成功: object_id=%s", object_id)
                 return True
@@ -459,7 +479,7 @@ class ZhihuClient:
             time.sleep(delay)
 
             logger.debug("请求专栏文章: %s offset=%d", url, offset)
-            response = self._request_with_retry("GET", url, params=params)
+            response = self._request_with_retry("GET", url, params=params, session=self.read_session)
             data = response.json()
 
             items = data.get("data", [])
@@ -501,7 +521,7 @@ class ZhihuClient:
             time.sleep(delay)
 
             logger.debug("请求用户回答: %s offset=%d", url, offset)
-            response = self._request_with_retry("GET", url, params=params)
+            response = self._request_with_retry("GET", url, params=params, session=self.read_session)
             data = response.json()
 
             items = data.get("data", [])
@@ -547,7 +567,7 @@ class ZhihuClient:
             time.sleep(delay)
 
             logger.debug("请求问题回答: %s offset=%d", url, offset)
-            response = self._request_with_retry("GET", url, params=params)
+            response = self._request_with_retry("GET", url, params=params, session=self.read_session)
             data = response.json()
 
             items = data.get("data", [])
