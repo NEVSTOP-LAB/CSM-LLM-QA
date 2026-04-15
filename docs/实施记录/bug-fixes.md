@@ -4,9 +4,10 @@
 
 ---
 
-## BUG-FIX-01 — `_handle_human_reply` 真人回复问题提取顺序错误
+## BUG-FIX-01 — `_handle_human_reply` 真人回复问题提取错误（根源修复）
 
 ### 问题位置
+`scripts/thread_manager.py::ThreadManager::_parse_turns`
 `scripts/run_bot.py::BotRunner::_handle_human_reply`
 
 ### 现象
@@ -15,44 +16,39 @@
 **作者自己的回复内容**，而非**用户的原始提问**，导致 RAG 检索效果为零。
 
 ### 根本原因
-原代码先调用 `append_turn(is_human=True)` 将作者回复追加到线程，再调用
-`build_context_messages` 获取历史。
+`_parse_turns` 在识别消息角色时，原有判断标准为：
 
-`_parse_turns` 在识别消息角色时，判断标准为：
 ```python
 is_bot = "Bot 回复" in section or "机器人回复" in section
 ```
+
 真人回复的标题含"真人回复（作者本人）⭐"，不含以上关键词，因此被识别为
 `is_bot=False`，映射为 `"user"` 角色。
 
-于是 `reversed(messages)` 找到的第一条 `"user"` 消息就是**刚追加的作者回复**
-本身，而非用户的提问。最终 RAG 索引为：
-```
-question: "CSM 是 Communicable State Machine"  ← 作者的回答（错误）
-reply:    "CSM 是 Communicable State Machine"  ← 作者的回答（同一内容）
-```
+因此 `_handle_human_reply` 中 `reversed(messages)` 找到的第一条 `"user"` 消息
+可能是**历史中任意一条真人回复**（若作者曾多次手动回复），而非用户的提问。
 
-### 修复方案
-将 `build_context_messages` 调用移到 `append_turn` **之前**：先从已有历史中
-提取用户提问，再将作者回复追加到线程。
+### 修复方案（根源修复）
+在 `_parse_turns` 中将"真人回复"纳入 `is_bot=True` 的判断条件：
 
 ```python
-# 修复后的顺序：
-# 1. build_context_messages (此时历史里只有用户提问和 Bot 回复，没有人工回复)
-question_for_rag = "用户评论"
-messages = thread_manager.build_context_messages(thread_path, max_turns=6)
-for msg in reversed(messages):
-    if msg.get("role") == "user":
-        question_for_rag = msg.get("content", question_for_rag)
-        break
-
-# 2. append_turn (将人工回复追加到线程，供后续归档)
-thread_manager.append_turn(..., is_human=True)
+is_bot = (
+    "Bot 回复" in section
+    or "机器人回复" in section
+    or "真人回复" in section   # ← 新增：作者真人回复同属"回答方"
+)
 ```
 
+这样"真人回复"在 `build_context_messages` 中被映射为 `role="assistant"`，
+`reversed(messages)` 会跳过所有 assistant 消息，只取用户的提问内容。
+
+**语义正确性**：在 LLM 对话上下文中，Bot 回复和作者真人回复都属于"回答方"，
+映射为 `assistant` role 更符合 OpenAI messages 格式的语义。
+
 ### 测试覆盖
-新增 `TestHumanReplyQuestion::test_human_reply_question_not_self_indexed`，
-使用真实 `ThreadManager`（而非 mock）来验证排序正确性。
+- 更新 `test_thread_manager.py::test_human_reply_is_assistant_role`（原 `test_human_reply_is_user_role`）
+- 更新 `test_run_bot.py::TestHumanReplyQuestion::test_human_reply_question_not_self_indexed`
+- 新增 `test_run_bot.py::TestHumanReplyQuestion::test_prior_human_reply_not_mistaken_as_question`（多轮真人回复场景）
 
 ---
 

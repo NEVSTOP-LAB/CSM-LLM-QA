@@ -743,10 +743,9 @@ class BotRunner:
                 },
             )
 
-            # BUG-FIX: 必须在 append_turn 之前调用 build_context_messages。
-            # 若在 append_turn 之后调用，真人回复会被 _parse_turns 识别为 "user" 角色
-            # （因为标题含"真人回复"而非"Bot 回复"），导致 reversed 搜索取到的
-            # question 是作者自己的回复内容，而非用户原始提问，RAG 索引错误。
+            # 从历史中找最近一条 role=="user" 的内容作为 question。
+            # _parse_turns 将"真人回复"映射为 assistant role，因此即使历史中存在
+            # 多条真人回复，reversed 搜索仍能跳过它们，正确取到用户的原始提问。
             # 参考: docs/实施记录/bug-fixes.md § BUG-FIX-01
             question_for_rag = "用户评论"  # 默认值
             if self.rag_retriever:

@@ -1173,9 +1173,9 @@ class TestHumanReplyQuestion:
         )
 
     def test_human_reply_question_not_self_indexed(self, runner, bot_root):
-        """BUG-FIX-01: build_context_messages 必须在 append_turn 之前调用，
-        否则真人回复本身会被当成"用户提问"索引到 RAG。
-        本测试用真实 ThreadManager 验证顺序正确。"""
+        """BUG-FIX-01（root fix）: _parse_turns 将"真人回复"识别为 assistant role，
+        因此历史中的作者真人回复不会被 reversed 搜索误当成"用户提问"索引到 RAG。
+        本测试用真实 ThreadManager 验证 question 抽取正确。"""
         from scripts.thread_manager import ThreadManager
 
         runner.load_config()
@@ -1233,11 +1233,68 @@ class TestHumanReplyQuestion:
         # 正确行为：question 应该是用户的提问，不应该是作者的回复内容
         assert "CSM 是什么" in question, (
             f"question 应为用户提问 'CSM 是什么？'，实际为: {question!r}. "
-            "若此测试失败说明 build_context_messages 在 append_turn 之后被调用，"
-            "导致真人回复本身被当成问题索引。"
+            "若此测试失败说明 _parse_turns 未将真人回复识别为 assistant role，"
+            "导致真人回复内容被当成问题索引。"
         )
         assert "Communicable State Machine" not in question, (
             f"question 不应为作者的回复内容，实际为: {question!r}"
+        )
+
+    def test_prior_human_reply_not_mistaken_as_question(self, runner, bot_root):
+        """BUG-FIX-01 扩展：即使线程历史中已有多条真人回复，
+        reversed 搜索也应跳过所有 assistant 消息，返回最近的 user 提问。"""
+        from scripts.thread_manager import ThreadManager
+
+        runner.load_config()
+        runner.init_modules()
+        runner.thread_manager = ThreadManager(archive_dir=str(bot_root / "archive"))
+
+        article = {"id": "art2", "title": "Test Article 2", "type": "article",
+                   "url": "http://example.com"}
+        runner.articles = [article]
+
+        # 线程历史：用户提问 → 真人回复 → 用户追问（当前需要索引的真人回复对应的提问）
+        thread_path = runner.thread_manager.get_or_create_thread(
+            article_id="art2",
+            root_comment={"id": "q1", "author": "bob"},
+            article_meta={"title": "Test Article 2", "url": "http://example.com"},
+        )
+        runner.thread_manager.append_turn(thread_path, "bob", "第一个问题", comment_id="q1")
+        runner.thread_manager.append_turn(thread_path, "author", "第一个答案", is_human=True)
+        runner.thread_manager.append_turn(thread_path, "bob", "第二个问题", comment_id="q2")
+        runner._comment_thread_map["q1"] = "q1"
+        runner._comment_thread_map["q2"] = "q1"
+
+        runner.zhihu_client = MagicMock()
+        runner.rag_retriever = MagicMock()
+        runner.rag_retriever.retrieve.return_value = []
+        runner.llm_client = MagicMock()
+        runner.llm_client.summarize_article.return_value = ""
+
+        # 作者回复第二个问题
+        human_comment2 = _make_comment(
+            "hr3", "第二个答案", is_author_reply=True, parent_id="q2"
+        )
+        runner._comment_thread_map["hr3"] = "q1"
+        runner._seen_ids_path.parent.mkdir(parents=True, exist_ok=True)
+        runner._bootstrapped_articles.add("art2")
+        runner._seen_ids = set()
+
+        runner.zhihu_client.get_comments.return_value = [human_comment2]
+        runner.process_article(article)
+
+        call_args = runner.rag_retriever.index_human_reply.call_args
+        assert call_args is not None
+        question = call_args.kwargs.get("question")
+        if question is None and call_args.args:
+            question = call_args.args[0]
+        question = question or ""
+        # 应取到"第二个问题"，而不是更早的"第一个答案"（作者上一次真人回复）
+        assert "第二个问题" in question, (
+            f"question 应为最近用户提问'第二个问题'，实际为: {question!r}"
+        )
+        assert "第一个答案" not in question, (
+            f"question 不应为历史真人回复内容，实际为: {question!r}"
         )
 
 
