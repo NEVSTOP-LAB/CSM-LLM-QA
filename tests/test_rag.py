@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import math
 from pathlib import Path
 
@@ -25,7 +26,8 @@ class FakeEmbedding(EmbeddingFunction):
         for text in texts:
             vec = [0.0] * self.DIM
             for token in text.split():
-                vec[hash(token) % self.DIM] += 1.0
+                token_hash = int(hashlib.md5(token.encode("utf-8")).hexdigest(), 16)
+                vec[token_hash % self.DIM] += 1.0
             # L2 归一化
             norm = math.sqrt(sum(x * x for x in vec)) or 1.0
             out.append([x / norm for x in vec])

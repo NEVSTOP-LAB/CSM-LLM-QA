@@ -85,8 +85,11 @@ class CSM_QA:
             raise ValueError("api_key 不可为空")
 
         # ─── LLM ─────────────────────────────────────────────────
-        resolved_base, resolved_model = resolve_endpoint(provider, base_url, model)
-        self.provider = provider
+        normalized_provider = provider.strip().lower()
+        resolved_base, resolved_model = resolve_endpoint(
+            normalized_provider, base_url, model
+        )
+        self.provider = normalized_provider
         self.model = resolved_model
         self.base_url = resolved_base
         self._llm = LLMClient(

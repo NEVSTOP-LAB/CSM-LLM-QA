@@ -231,6 +231,16 @@ class RAGRetriever:
             content = self._read_text(md_file)
             chunks = self._chunk_markdown(content, rel)
             if not chunks:
+                # 文件存在但内容为空/无法分块：仍记录 hash 以避免重复处理，
+                # 并清理该 source 在向量库中的旧片段（如果有）。
+                try:
+                    existing = self._collection.get(where={"source": rel})
+                    if existing and existing["ids"]:
+                        self._collection.delete(ids=existing["ids"])
+                except Exception as exc:
+                    logger.debug("删除空文档旧向量出错（可能不存在）: %s", exc)
+                new_hashes[rel] = new_hash
+                updated += 1
                 continue
 
             texts = [c["text"] for c in chunks]
