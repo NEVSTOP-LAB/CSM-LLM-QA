@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import configparser
 import logging
 import os
 from pathlib import Path
@@ -148,6 +149,99 @@ class CSM_QA:
             "provider": env.get("CSM_QA_PROVIDER", "deepseek"),
             "model": env.get("CSM_QA_MODEL") or env.get("LLM_MODEL"),
             "base_url": env.get("CSM_QA_BASE_URL") or env.get("LLM_BASE_URL"),
+        }
+        kwargs.update(overrides)
+        return cls(**kwargs)
+
+    @classmethod
+    def from_ini(cls, config_path: str | Path, **overrides) -> "CSM_QA":
+        """从 INI 配置文件构造实例。
+
+        配置文件格式（各节均可省略，省略时使用默认值）::
+
+            [llm]
+            api_key   = sk-xxx
+            provider  = deepseek
+            model     = deepseek-chat
+            base_url  =
+            temperature     = 0.5
+            max_tokens      = 512
+            max_retries     = 3
+            request_timeout = 60.0
+
+            [rag]
+            wiki_dir          = csm-wiki/remote
+            vector_store_dir  = .csm_qa/vector_store
+            top_k             = 3
+            similarity_threshold = 0.72
+            auto_sync_wiki    = true
+
+            [embedding]
+            provider  = local
+            model     = BAAI/bge-small-zh-v1.5
+            api_key   =
+            base_url  =
+
+            [prompt]
+            system_prompt =
+
+        Args:
+            config_path: INI 文件路径（相对路径或绝对路径均可）。
+            **overrides: 可覆盖文件中任意参数。
+
+        Raises:
+            FileNotFoundError: 文件不存在。
+            ValueError: api_key 未在文件中配置且未通过 overrides 提供。
+        """
+        path = Path(config_path).expanduser().resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"配置文件不存在: {path}")
+
+        cp = configparser.ConfigParser(interpolation=None)
+        cp.read(path, encoding="utf-8")
+
+        def _get(section: str, key: str, fallback=None):
+            return cp.get(section, key, fallback=fallback)
+
+        def _getfloat(section: str, key: str, fallback: float) -> float:
+            try:
+                return cp.getfloat(section, key)
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                return fallback
+
+        def _getint(section: str, key: str, fallback: int) -> int:
+            try:
+                return cp.getint(section, key)
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                return fallback
+
+        def _getbool(section: str, key: str, fallback: bool) -> bool:
+            try:
+                return cp.getboolean(section, key)
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                return fallback
+
+        kwargs: dict = {
+            "api_key": _get("llm", "api_key", None),
+            "provider": _get("llm", "provider", "deepseek"),
+            "model": _get("llm", "model"),
+            "base_url": _get("llm", "base_url"),
+            "temperature": _getfloat("llm", "temperature", 0.5),
+            "max_tokens": _getint("llm", "max_tokens", 512),
+            "max_retries": _getint("llm", "max_retries", 3),
+            "request_timeout": _getfloat("llm", "request_timeout", 60.0),
+            "wiki_dir": _get("rag", "wiki_dir", "csm-wiki/remote"),
+            "vector_store_dir": _get("rag", "vector_store_dir", ".csm_qa/vector_store"),
+            "top_k": _getint("rag", "top_k", 3),
+            "similarity_threshold": _getfloat("rag", "similarity_threshold", 0.72),
+            "auto_sync_wiki": _getbool("rag", "auto_sync_wiki", True),
+            "embedding_provider": _get("embedding", "provider", "local"),
+            "embedding_model": _get(
+                "embedding", "model", "BAAI/bge-small-zh-v1.5"
+            ),
+            "embedding_api_key": _get("embedding", "api_key"),
+            "embedding_base_url": _get("embedding", "base_url"),
+            "system_prompt": _get("prompt", "system_prompt"),
         }
         kwargs.update(overrides)
         return cls(**kwargs)

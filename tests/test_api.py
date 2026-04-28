@@ -203,3 +203,183 @@ def test_sync_wiki_proxies_to_retriever(qa):
     res = qa.sync_wiki(force=True)
     # 至少包含三个键
     assert set(res.keys()) >= {"updated", "skipped", "removed"}
+
+
+# ─── from_ini 测试 ───────────────────────────────────────────────
+
+def _make_ini(tmp_dir: Path, content: str) -> Path:
+    """写临时 INI 文件并返回路径。"""
+    p = tmp_dir / "config.ini"
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+def test_from_ini_basic(tmp_dir):
+    """from_ini 能读取 [llm] api_key 并构造实例。"""
+    ini = _make_ini(tmp_dir, f"""\
+[llm]
+api_key = sk-from-ini
+provider = deepseek
+
+[rag]
+wiki_dir = {tmp_dir / "wiki"}
+vector_store_dir = {tmp_dir / "store"}
+auto_sync_wiki = false
+""")
+    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+        mock_llm_cls.return_value = MagicMock()
+        qa = CSM_QA.from_ini(ini)
+    assert qa.provider == "deepseek"
+    assert qa.model == "deepseek-chat"
+    kwargs = mock_llm_cls.call_args.kwargs
+    assert kwargs["api_key"] == "sk-from-ini"
+
+
+def test_from_ini_all_llm_options(tmp_dir):
+    """from_ini 读取所有 [llm] 节选项。"""
+    ini = _make_ini(tmp_dir, f"""\
+[llm]
+api_key         = sk-xyz
+provider        = openai_compatible
+base_url        = https://example.com/v1
+model           = gpt-test
+temperature     = 0.1
+max_tokens      = 256
+max_retries     = 5
+request_timeout = 30.0
+
+[rag]
+wiki_dir         = {tmp_dir / "wiki"}
+vector_store_dir = {tmp_dir / "store"}
+auto_sync_wiki   = false
+""")
+    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+        mock_llm_cls.return_value = MagicMock()
+        qa = CSM_QA.from_ini(ini)
+    assert qa.provider == "openai_compatible"
+    assert qa.base_url == "https://example.com/v1"
+    assert qa.model == "gpt-test"
+    kw = mock_llm_cls.call_args.kwargs
+    assert kw["temperature"] == 0.1
+    assert kw["max_tokens"] == 256
+    assert kw["max_retries"] == 5
+    assert kw["timeout"] == 30.0
+
+
+def test_from_ini_rag_options(tmp_dir):
+    """from_ini 读取 [rag] 节选项。"""
+    ini = _make_ini(tmp_dir, f"""\
+[llm]
+api_key = sk-test
+
+[rag]
+wiki_dir             = {tmp_dir / "wiki"}
+vector_store_dir     = {tmp_dir / "store"}
+top_k                = 7
+similarity_threshold = 0.8
+auto_sync_wiki       = false
+""")
+    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+        mock_llm_cls.return_value = MagicMock()
+        qa = CSM_QA.from_ini(ini)
+    assert qa.top_k == 7
+    assert qa.similarity_threshold == 0.8
+
+
+def test_from_ini_embedding_options(tmp_dir):
+    """from_ini 读取 [embedding] 节选项。"""
+    ini = _make_ini(tmp_dir, f"""\
+[llm]
+api_key = sk-test
+
+[rag]
+wiki_dir         = {tmp_dir / "wiki"}
+vector_store_dir = {tmp_dir / "store"}
+auto_sync_wiki   = false
+
+[embedding]
+provider = openai
+model    = text-embedding-ada-002
+api_key  = emb-key
+base_url = https://emb.example.com
+""")
+    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_qa.api.EmbeddingFunction") as mock_emb_cls:
+        mock_llm_cls.return_value = MagicMock()
+        mock_emb_cls.return_value = FakeEmbedding()
+        CSM_QA.from_ini(ini)
+    kw = mock_emb_cls.call_args.kwargs
+    assert kw["provider"] == "openai"
+    assert kw["model"] == "text-embedding-ada-002"
+    assert kw["api_key"] == "emb-key"
+    assert kw["base_url"] == "https://emb.example.com"
+
+
+def test_from_ini_custom_system_prompt(tmp_dir):
+    """from_ini 读取 [prompt] system_prompt。"""
+    ini = _make_ini(tmp_dir, f"""\
+[llm]
+api_key = sk-test
+
+[rag]
+wiki_dir         = {tmp_dir / "wiki"}
+vector_store_dir = {tmp_dir / "store"}
+auto_sync_wiki   = false
+
+[prompt]
+system_prompt = You are a pirate.
+""")
+    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+        mock_llm_cls.return_value = MagicMock()
+        qa = CSM_QA.from_ini(ini)
+    assert qa.system_prompt == "You are a pirate."
+
+
+def test_from_ini_overrides_win(tmp_dir):
+    """**overrides 参数优先于配置文件中的值。"""
+    ini = _make_ini(tmp_dir, f"""\
+[llm]
+api_key  = sk-file
+provider = deepseek
+
+[rag]
+wiki_dir         = {tmp_dir / "wiki"}
+vector_store_dir = {tmp_dir / "store"}
+auto_sync_wiki   = false
+""")
+    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+        mock_llm_cls.return_value = MagicMock()
+        qa = CSM_QA.from_ini(ini, api_key="sk-override")
+    kw = mock_llm_cls.call_args.kwargs
+    assert kw["api_key"] == "sk-override"
+
+
+def test_from_ini_file_not_found(tmp_dir):
+    """配置文件不存在时抛出 FileNotFoundError。"""
+    with pytest.raises(FileNotFoundError):
+        CSM_QA.from_ini(tmp_dir / "nonexistent.ini")
+
+
+def test_from_ini_relative_path(tmp_dir, monkeypatch):
+    """支持相对路径（相对于当前工作目录）。"""
+    ini = _make_ini(tmp_dir, f"""\
+[llm]
+api_key = sk-rel
+
+[rag]
+wiki_dir         = {tmp_dir / "wiki"}
+vector_store_dir = {tmp_dir / "store"}
+auto_sync_wiki   = false
+""")
+    monkeypatch.chdir(tmp_dir)
+    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+        mock_llm_cls.return_value = MagicMock()
+        qa = CSM_QA.from_ini("config.ini")  # relative path
+    kw = mock_llm_cls.call_args.kwargs
+    assert kw["api_key"] == "sk-rel"

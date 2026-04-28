@@ -1,0 +1,63 @@
+# CSM_QA 配置文件示例
+# 用法：
+#   qa = CSM_QA.from_ini("config.ini")           # 相对路径
+#   qa = CSM_QA.from_ini("/abs/path/config.ini")  # 绝对路径
+#
+# 将此文件复制为 config.ini，填入你的 API Key 后即可使用。
+# 所有选项均可省略，省略时使用括号内的默认值。
+
+[llm]
+# （必填）LLM API Key
+api_key   = sk-xxx
+
+# provider: deepseek | openai_compatible  （默认: deepseek）
+provider  = deepseek
+
+# 模型名；省略时使用 provider 预设（deepseek → deepseek-chat）
+# model   = deepseek-chat
+
+# API Base URL；省略时使用 provider 预设
+# base_url = https://api.deepseek.com
+
+# 生成温度  （默认: 0.5）
+# temperature = 0.5
+
+# 单次回复 token 上限  （默认: 512）
+# max_tokens = 512
+
+# 请求失败重试次数  （默认: 3）
+# max_retries = 3
+
+# 单次请求超时（秒）  （默认: 60.0）
+# request_timeout = 60.0
+
+[rag]
+# 知识库 Markdown 目录  （默认: csm-wiki/remote）
+# wiki_dir = csm-wiki/remote
+
+# 向量库持久化目录  （默认: .csm_qa/vector_store）
+# vector_store_dir = .csm_qa/vector_store
+
+# RAG 返回片段数  （默认: 3）
+# top_k = 3
+
+# 相似度阈值  （默认: 0.72）
+# similarity_threshold = 0.72
+
+# 构造时若向量库为空则自动同步 wiki  （默认: true）
+# auto_sync_wiki = true
+
+[embedding]
+# embedding provider: local | openai  （默认: local）
+# provider = local
+
+# embedding 模型名  （默认: BAAI/bge-small-zh-v1.5）
+# model = BAAI/bge-small-zh-v1.5
+
+# 使用线上 embedding 服务时填写
+# api_key  =
+# base_url =
+
+[prompt]
+# 自定义 system prompt；省略时使用内置 CSM/LabVIEW 默认 prompt
+# system_prompt =
