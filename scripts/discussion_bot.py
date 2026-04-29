@@ -411,8 +411,10 @@ def build_reply(answer: str) -> str:
 def resolve_org_qa_category_id(client: GitHubGraphQL, org: str) -> str:
     """通过 GraphQL 查询组织中名为 'Q&A' 的 Discussion Category node ID。
 
-    GitHub GraphQL API 不支持 organization.discussionCategories，
-    因此通过扫描组织已有讨论来提取分类信息。
+    GitHub GraphQL 的 ``Organization`` 类型没有 ``discussionCategories`` 字段，
+    也没有 ``discussions`` 字段；获取组织内全部仓库的讨论需要使用
+    ``Organization.repositoryDiscussions``。这里通过扫描组织内已有的讨论
+    来提取分类信息。
 
     Raises:
         RuntimeError: 未找到 Q&A category。
@@ -420,7 +422,7 @@ def resolve_org_qa_category_id(client: GitHubGraphQL, org: str) -> str:
     gql = """
     query($org: String!, $cursor: String) {
       organization(login: $org) {
-        discussions(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: DESC}) {
+        repositoryDiscussions(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: DESC}) {
           nodes {
             category {
               id
@@ -441,7 +443,9 @@ def resolve_org_qa_category_id(client: GitHubGraphQL, org: str) -> str:
     seen_categories: dict[str, str] = {}
     while True:
         data = client.query(gql, {"org": org, "cursor": cursor})
-        discussions_data = data.get("organization", {}).get("discussions", {})
+        discussions_data = (
+            data.get("organization", {}).get("repositoryDiscussions", {})
+        )
         nodes = discussions_data.get("nodes", [])
         page_info = discussions_data.get("pageInfo", {"hasNextPage": False, "endCursor": None})
         for node in nodes:
@@ -472,53 +476,75 @@ def fetch_org_discussion(
 ) -> dict[str, Any]:
     """拉取指定组织级 discussion 的详情（含所有评论，自动分页）。
 
+    GitHub GraphQL 的 ``Organization`` 类型没有 ``discussion(number:)`` 字段
+    （discussion 是仓库级实体，必须通过 ``repository(...).discussion(number:)``
+    访问）。这里通过分页扫描 ``Organization.repositoryDiscussions`` 找出
+    编号匹配的 discussion，从而支持 webhook relay 仅传入 discussion number 的场景。
+
     Raises:
         RuntimeError: Discussion 不存在或无权限。
     """
     gql = """
-    query($org: String!, $number: Int!) {
+    query($org: String!, $cursor: String) {
       organization(login: $org) {
-        discussion(number: $number) {
-          id
-          number
-          title
-          body
-          url
-          closed
-          category {
+        repositoryDiscussions(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: DESC}) {
+          nodes {
             id
-            name
-          }
-          comments(first: 100) {
-            nodes {
+            number
+            title
+            body
+            url
+            closed
+            category {
               id
-              body
-              createdAt
-              author { login }
+              name
             }
-            pageInfo {
-              hasNextPage
-              endCursor
+            comments(first: 100) {
+              nodes {
+                id
+                body
+                createdAt
+                author { login }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
             }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
     }
     """
-    data = client.query(gql, {"org": org, "number": number})
-    disc = data.get("organization", {}).get("discussion")
-    if not disc:
-        raise RuntimeError(f"组织 Discussion #{number} 不存在或无权限访问")
-
-    while disc["comments"]["pageInfo"]["hasNextPage"]:
-        cursor = disc["comments"]["pageInfo"]["endCursor"]
-        more = _fetch_more_comments(client, disc["id"], cursor)
-        disc["comments"]["nodes"].extend(more.get("nodes", []))
-        disc["comments"]["pageInfo"] = more.get(
+    cursor: Optional[str] = None
+    while True:
+        data = client.query(gql, {"org": org, "cursor": cursor})
+        discussions_data = (
+            data.get("organization", {}).get("repositoryDiscussions", {})
+        )
+        nodes = discussions_data.get("nodes", []) or []
+        page_info = discussions_data.get(
             "pageInfo", {"hasNextPage": False, "endCursor": None}
         )
+        for disc in nodes:
+            if disc.get("number") == number:
+                while disc["comments"]["pageInfo"]["hasNextPage"]:
+                    inner_cursor = disc["comments"]["pageInfo"]["endCursor"]
+                    more = _fetch_more_comments(client, disc["id"], inner_cursor)
+                    disc["comments"]["nodes"].extend(more.get("nodes", []))
+                    disc["comments"]["pageInfo"] = more.get(
+                        "pageInfo", {"hasNextPage": False, "endCursor": None}
+                    )
+                return disc
+        if not page_info.get("hasNextPage"):
+            break
+        cursor = page_info.get("endCursor")
 
-    return disc
+    raise RuntimeError(f"组织 Discussion #{number} 不存在或无权限访问")
 
 
 def scan_org_qa_discussions(
@@ -533,14 +559,16 @@ def scan_org_qa_discussions(
     会跳过 ``closed = True`` 的 discussion，仅返回 open 状态的 discussion。
     通过 ``pageInfo`` 翻页，最多扫描 ``max_pages * page_size`` 条 discussion，
     以避免 PAT 配额异常时陷入死循环。
+
+    GitHub GraphQL 的 ``Organization.repositoryDiscussions`` 字段不支持按
+    ``categoryId`` 过滤，因此这里在客户端按 ``category.id`` 过滤。
     """
     gql = """
-    query($org: String!, $categoryId: ID!, $pageSize: Int!, $cursor: String) {
+    query($org: String!, $pageSize: Int!, $cursor: String) {
       organization(login: $org) {
-        discussions(
+        repositoryDiscussions(
           first: $pageSize,
           after: $cursor,
-          categoryId: $categoryId,
           orderBy: {field: CREATED_AT, direction: DESC}
         ) {
           nodes {
@@ -580,15 +608,22 @@ def scan_org_qa_discussions(
     for _ in range(max_pages):
         data = client.query(
             gql,
-            {"org": org, "categoryId": category_id, "pageSize": page_size, "cursor": cursor},
+            {"org": org, "pageSize": page_size, "cursor": cursor},
         )
-        discussions_data = data.get("organization", {}).get("discussions", {})
+        discussions_data = (
+            data.get("organization", {}).get("repositoryDiscussions", {})
+        )
         nodes = discussions_data.get("nodes", []) or []
         page_info = discussions_data.get(
             "pageInfo", {"hasNextPage": False, "endCursor": None}
         )
         for disc in nodes:
             if disc.get("closed"):
+                continue
+            # 客户端按 category.id 过滤，因为 repositoryDiscussions 不支持
+            # categoryId 参数。
+            cat = disc.get("category") or {}
+            if cat.get("id") != category_id:
                 continue
             # 拉取该 discussion 的全部评论
             while disc["comments"]["pageInfo"]["hasNextPage"]:

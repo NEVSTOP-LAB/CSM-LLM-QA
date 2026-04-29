@@ -226,7 +226,7 @@ def test_resolve_org_qa_category_id_found():
     """能正确返回组织中名为 'Q&A' 的 category ID。"""
     data = {
         "organization": {
-            "discussions": {
+            "repositoryDiscussions": {
                 "nodes": [
                     {"category": {"id": "cat1", "name": "General", "slug": "general", "isAnswerable": False}},
                     {"category": {"id": "cat2", "name": "Q&A", "slug": "q-a", "isAnswerable": True}},
@@ -243,7 +243,7 @@ def test_resolve_org_qa_category_id_not_found():
     """未找到 Q&A category 时应抛出 RuntimeError。"""
     data = {
         "organization": {
-            "discussions": {
+            "repositoryDiscussions": {
                 "nodes": [
                     {"category": {"id": "cat1", "name": "General", "slug": "general", "isAnswerable": False}},
                 ],
@@ -260,7 +260,7 @@ def test_resolve_org_qa_category_id_empty():
     """分类列表为空时应抛出 RuntimeError。"""
     data = {
         "organization": {
-            "discussions": {
+            "repositoryDiscussions": {
                 "nodes": [],
                 "pageInfo": {"hasNextPage": False, "endCursor": None},
             }
@@ -275,20 +275,26 @@ def test_resolve_org_qa_category_id_empty():
 
 
 def _make_org_discussion_payload(number: int = 31, comments: list[dict] | None = None) -> dict:
-    """构造 organization.discussion GraphQL 响应 payload。"""
+    """构造 organization.repositoryDiscussions GraphQL 响应 payload（含一条匹配的 discussion）。"""
     return {
         "organization": {
-            "discussion": {
-                "id": f"D_org_{number}",
-                "number": number,
-                "title": f"Org Discussion #{number}",
-                "body": "Body text",
-                "url": f"https://github.com/orgs/NEVSTOP-LAB/discussions/{number}",
-                "category": {"id": "cat2", "name": "Q&A"},
-                "comments": {
-                    "nodes": comments or [],
-                    "pageInfo": {"hasNextPage": False, "endCursor": None},
-                },
+            "repositoryDiscussions": {
+                "nodes": [
+                    {
+                        "id": f"D_org_{number}",
+                        "number": number,
+                        "title": f"Org Discussion #{number}",
+                        "body": "Body text",
+                        "url": f"https://github.com/orgs/NEVSTOP-LAB/discussions/{number}",
+                        "closed": False,
+                        "category": {"id": "cat2", "name": "Q&A"},
+                        "comments": {
+                            "nodes": comments or [],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        },
+                    }
+                ],
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
             }
         }
     }
@@ -303,7 +309,16 @@ def test_fetch_org_discussion_returns_discussion():
 
 
 def test_fetch_org_discussion_not_found():
-    client = _MockGraphQL({"organization": {"discussion": None}})
+    client = _MockGraphQL(
+        {
+            "organization": {
+                "repositoryDiscussions": {
+                    "nodes": [],
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                }
+            }
+        }
+    )
     with pytest.raises(RuntimeError, match="31"):
         fetch_org_discussion(client, "NEVSTOP-LAB", 31)
 
@@ -315,7 +330,7 @@ def test_scan_org_qa_discussions_returns_list():
     """scan_org_qa_discussions 应返回 discussion 列表。"""
     data = {
         "organization": {
-            "discussions": {
+            "repositoryDiscussions": {
                 "nodes": [
                     {
                         "id": "D1",
@@ -323,13 +338,15 @@ def test_scan_org_qa_discussions_returns_list():
                         "title": "Q1",
                         "body": "body1",
                         "url": "https://github.com/orgs/NEVSTOP-LAB/discussions/1",
+                        "closed": False,
                         "category": {"id": "cat2", "name": "Q&A"},
                         "comments": {
                             "nodes": [],
                             "pageInfo": {"hasNextPage": False, "endCursor": None},
                         },
                     }
-                ]
+                ],
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
             }
         }
     }
@@ -341,7 +358,7 @@ def test_scan_org_qa_discussions_returns_list():
 
 def test_scan_org_qa_discussions_empty():
     """分类下无讨论时应返回空列表。"""
-    data = {"organization": {"discussions": {"nodes": []}}}
+    data = {"organization": {"repositoryDiscussions": {"nodes": []}}}
     client = _MockGraphQL(data)
     assert scan_org_qa_discussions(client, "NEVSTOP-LAB", "cat2") == []
 
@@ -638,7 +655,7 @@ def test_scan_org_qa_discussions_filters_closed():
     """全量扫描应过滤掉 closed=True 的 discussion。"""
     data = {
         "organization": {
-            "discussions": {
+            "repositoryDiscussions": {
                 "nodes": [
                     {
                         "id": "D1", "number": 1, "title": "open", "body": "",
