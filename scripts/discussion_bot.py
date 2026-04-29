@@ -640,7 +640,7 @@ def _process_discussion_dict(
     else:
         logger.info("正在为 Discussion #%d 生成回答: %r", number, title)
 
-    answer = qa_engine.ask(question, history=history) if history else qa_engine.ask(question)
+    answer = qa_engine.ask(question, history=history)
     reply_body = build_reply(answer)
 
     if dry_run:

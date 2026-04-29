@@ -351,7 +351,7 @@ def test_scan_org_qa_discussions_empty():
 
 class _FakeQAEngine:
     """最小化 QA 引擎 mock，总是返回固定答案。"""
-    def ask(self, question: str) -> str:
+    def ask(self, question: str, history=None) -> str:
         return f"answer to: {question}"
 
 
