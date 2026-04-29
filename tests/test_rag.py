@@ -189,7 +189,9 @@ def test_local_embedding_sets_default_hf_endpoint_before_loading(monkeypatch):
             return FakeEncoded()
 
     def fake_create_local_model(self):
-        observed["endpoint"] = os.environ.get("HF_ENDPOINT")
+        # 记录首次尝试时的 endpoint（第一次即应为国内镜像）
+        if "endpoint" not in observed:
+            observed["endpoint"] = os.environ.get("HF_ENDPOINT")
         return FakeModel()
 
     monkeypatch.setattr(
@@ -203,7 +205,43 @@ def test_local_embedding_sets_default_hf_endpoint_before_loading(monkeypatch):
     assert observed["endpoint"] == "https://hf-mirror.com"
 
 
+def test_local_embedding_fallback_tries_all_endpoints(monkeypatch):
+    """首个端点失败时应依次尝试回落候选，最终成功返回。"""
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+    embedding = EmbeddingFunction()
+    attempted_endpoints: list[str] = []
+
+    class FakeEncoded:
+        def tolist(self):
+            return [[0.5, 0.5]]
+
+    class FakeModel:
+        def encode(self, texts, normalize_embeddings=True):
+            return FakeEncoded()
+
+    call_count = {"n": 0}
+
+    def fake_create_local_model(self):
+        call_count["n"] += 1
+        attempted_endpoints.append(os.environ.get("HF_ENDPOINT", ""))
+        if call_count["n"] == 1:
+            # 第一次（hf-mirror.com）失败
+            raise ConnectionError("mirror unreachable")
+        # 第二次（huggingface.co）成功
+        return FakeModel()
+
+    monkeypatch.setattr(EmbeddingFunction, "_create_local_model", fake_create_local_model)
+
+    result = embedding.embed(["test"])
+    assert result == [[0.5, 0.5]]
+    assert call_count["n"] == 2
+    assert attempted_endpoints[0] == "https://hf-mirror.com"
+    assert attempted_endpoints[1] == "https://huggingface.co"
+
+
 def test_local_embedding_load_failure_is_not_retried(monkeypatch):
+    """所有端点均失败后，应停止重试并在后续调用中直接抛出。"""
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
     embedding = EmbeddingFunction()
     calls = {"count": 0}
 
@@ -220,7 +258,83 @@ def test_local_embedding_load_failure_is_not_retried(monkeypatch):
     with pytest.raises(RuntimeError, match="本地 Embedding 模型初始化失败"):
         embedding.embed(["first"])
 
+    # 所有候选端点（hf-mirror.com + huggingface.co = 2 次）均应被尝试
+    from csm_qa.rag import _HF_FALLBACK_ENDPOINTS
+    assert calls["count"] == len(_HF_FALLBACK_ENDPOINTS)
+
+    # 后续调用不应再重试
     with pytest.raises(RuntimeError, match="已停止后续重试"):
         embedding.embed(["second"])
 
-    assert calls["count"] == 1
+    assert calls["count"] == len(_HF_FALLBACK_ENDPOINTS)
+
+
+def test_local_embedding_user_endpoint_appended_as_last_fallback(monkeypatch):
+    """用户配置的 HF_ENDPOINT（非默认值）应追加到回落列表末尾。"""
+    user_url = "https://my-custom-mirror.example.com"
+    monkeypatch.setenv("HF_ENDPOINT", user_url)
+    embedding = EmbeddingFunction()
+    candidates = embedding._build_hf_endpoint_candidates()
+
+    from csm_qa.rag import _HF_FALLBACK_ENDPOINTS
+    assert candidates[: len(_HF_FALLBACK_ENDPOINTS)] == list(_HF_FALLBACK_ENDPOINTS)
+    assert candidates[-1] == user_url
+
+
+def test_local_embedding_user_endpoint_not_duplicated(monkeypatch):
+    """用户配置的 HF_ENDPOINT 若与内置候选重复，不应重复追加。"""
+    monkeypatch.setenv("HF_ENDPOINT", "https://hf-mirror.com")
+    embedding = EmbeddingFunction()
+    candidates = embedding._build_hf_endpoint_candidates()
+    assert candidates.count("https://hf-mirror.com") == 1
+
+
+def test_local_embedding_restores_hf_endpoint_after_success(monkeypatch):
+    """模型加载成功后，HF_ENDPOINT 环境变量应恢复到调用前的值。"""
+    original = "https://original-endpoint.example.com"
+    monkeypatch.setenv("HF_ENDPOINT", original)
+    embedding = EmbeddingFunction()
+
+    class FakeModel:
+        def encode(self, texts, normalize_embeddings=True):
+            class R:
+                def tolist(self):
+                    return [[1.0]]
+            return R()
+
+    monkeypatch.setattr(EmbeddingFunction, "_create_local_model", lambda self: FakeModel())
+    embedding.embed(["test"])
+    assert os.environ.get("HF_ENDPOINT") == original
+
+
+def test_local_embedding_restores_hf_endpoint_after_failure(monkeypatch):
+    """所有端点失败后，HF_ENDPOINT 环境变量应恢复到调用前的值。"""
+    original = "https://original-endpoint.example.com"
+    monkeypatch.setenv("HF_ENDPOINT", original)
+    embedding = EmbeddingFunction()
+
+    monkeypatch.setattr(
+        EmbeddingFunction, "_create_local_model", lambda self: (_ for _ in ()).throw(RuntimeError("fail"))
+    )
+
+    with pytest.raises(RuntimeError):
+        embedding.embed(["test"])
+
+    assert os.environ.get("HF_ENDPOINT") == original
+
+
+def test_local_embedding_removes_hf_endpoint_env_when_originally_absent(monkeypatch):
+    """HF_ENDPOINT 原本不存在时，加载后应将其从环境变量中移除（而非留下最后一次尝试的值）。"""
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+    embedding = EmbeddingFunction()
+
+    class FakeModel:
+        def encode(self, texts, normalize_embeddings=True):
+            class R:
+                def tolist(self):
+                    return [[1.0]]
+            return R()
+
+    monkeypatch.setattr(EmbeddingFunction, "_create_local_model", lambda self: FakeModel())
+    embedding.embed(["test"])
+    assert "HF_ENDPOINT" not in os.environ
