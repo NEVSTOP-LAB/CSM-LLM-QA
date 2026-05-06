@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from csm_qa.rag import EmbeddingFunction, RAGRetriever
+from csm_llm_qa.rag import EmbeddingFunction, RAGRetriever
 
 
 class FakeEmbedding(EmbeddingFunction):
@@ -161,7 +161,7 @@ def test_retrieve_logs_hit_details(retriever: RAGRetriever, caplog):
     )
     retriever.sync_wiki()
 
-    with caplog.at_level("INFO", logger="csm_qa.rag"):
+    with caplog.at_level("INFO", logger="csm_llm_qa.rag"):
         results = retriever.retrieve("CSM 状态机 切换", k=1, threshold=0.0)
 
     assert len(results) == 1
@@ -275,7 +275,7 @@ def test_local_embedding_load_failure_is_not_retried(monkeypatch):
         embedding.embed(["first"])
 
     # 所有候选端点（hf-mirror.com + huggingface.co = 2 次）均应被尝试
-    from csm_qa.rag import _HF_FALLBACK_ENDPOINTS
+    from csm_llm_qa.rag import _HF_FALLBACK_ENDPOINTS
     assert calls["count"] == len(_HF_FALLBACK_ENDPOINTS)
 
     # 后续调用不应再重试
@@ -292,7 +292,7 @@ def test_local_embedding_user_endpoint_appended_as_last_fallback(monkeypatch):
     embedding = EmbeddingFunction()
     candidates = embedding._build_hf_endpoint_candidates()
 
-    from csm_qa.rag import _HF_FALLBACK_ENDPOINTS
+    from csm_llm_qa.rag import _HF_FALLBACK_ENDPOINTS
     assert candidates[: len(_HF_FALLBACK_ENDPOINTS)] == list(_HF_FALLBACK_ENDPOINTS)
     assert candidates[-1] == user_url
 

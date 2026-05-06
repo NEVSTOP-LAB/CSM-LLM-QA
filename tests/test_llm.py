@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from csm_qa.llm import LLMClient
+from csm_llm_qa.llm import LLMClient
 
 
 def _fake_response(content="hello", pt=10, ct=5):
@@ -16,7 +16,7 @@ def _fake_response(content="hello", pt=10, ct=5):
 
 
 def _make_client():
-    with patch("csm_qa.llm.OpenAI") as mock_openai:
+    with patch("csm_llm_qa.llm.OpenAI") as mock_openai:
         instance = MagicMock()
         mock_openai.return_value = instance
         client = LLMClient(
@@ -62,7 +62,7 @@ def test_chat_passes_overrides():
 def test_chat_retries_on_rate_limit_then_succeeds(monkeypatch):
     from openai import RateLimitError
 
-    monkeypatch.setattr("csm_qa.llm.time.sleep", lambda *_: None)
+    monkeypatch.setattr("csm_llm_qa.llm.time.sleep", lambda *_: None)
     client, openai_instance = _make_client()
 
     err = RateLimitError(
@@ -78,7 +78,7 @@ def test_chat_retries_on_rate_limit_then_succeeds(monkeypatch):
 def test_chat_raises_after_max_retries(monkeypatch):
     from openai import RateLimitError
 
-    monkeypatch.setattr("csm_qa.llm.time.sleep", lambda *_: None)
+    monkeypatch.setattr("csm_llm_qa.llm.time.sleep", lambda *_: None)
     client, openai_instance = _make_client()
     err = RateLimitError(
         "rate", response=MagicMock(status_code=429), body=None

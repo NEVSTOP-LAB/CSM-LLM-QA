@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from csm_qa import AnswerResult, CSM_QA, Message
-from csm_qa.types import Usage
+from csm_llm_qa import AnswerResult, CSM_QA, Message
+from csm_llm_qa.types import Usage
 from tests.test_rag import FakeEmbedding
 
 
@@ -24,8 +24,8 @@ def qa(tmp_dir: Path):
         encoding="utf-8",
     )
 
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm = MagicMock()
         mock_llm.chat.return_value = ("回答内容", Usage(10, 5, 15))
         mock_llm_cls.return_value = mock_llm
@@ -46,8 +46,8 @@ def test_init_requires_api_key():
 
 
 def test_init_resolves_deepseek_defaults(tmp_dir):
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA(
             api_key="sk",
@@ -72,8 +72,8 @@ def test_openai_compatible_requires_base_and_model(tmp_dir):
 
 
 def test_openai_compatible_works_with_overrides(tmp_dir):
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA(
             api_key="sk",
@@ -152,8 +152,8 @@ def test_ask_uses_default_system_prompt(qa):
 
 
 def test_custom_system_prompt_overrides_default(tmp_dir):
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm = MagicMock()
         mock_llm.chat.return_value = ("ok", Usage())
         mock_llm_cls.return_value = mock_llm
@@ -192,8 +192,8 @@ def test_ask_includes_wiki_link_in_system_message(qa):
 
 def test_default_max_tokens_and_top_k_are_increased(tmp_dir):
     """默认 token 上限与检索深度应分别提升到 2048/6。"""
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA(
             api_key="sk",
@@ -214,8 +214,8 @@ def test_custom_wiki_base_url_used_in_system_message(tmp_dir):
         "# CSM 框架\nCSM 是 Communicable State Machine，状态切换 通过 消息 通信",
         encoding="utf-8",
     )
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm = MagicMock()
         mock_llm.chat.return_value = ("ok", Usage())
         mock_llm_cls.return_value = mock_llm
@@ -240,8 +240,8 @@ def test_from_env_reads_unified_env_vars(monkeypatch, tmp_dir):
     monkeypatch.delenv("LLM_MODEL", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
 
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA.from_env(
             wiki_dir=tmp_dir / "wiki",
@@ -281,8 +281,8 @@ wiki_dir = {tmp_dir / "wiki"}
 vector_store_dir = {tmp_dir / "store"}
 auto_sync_wiki = false
 """)
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA.from_ini(ini)
     assert qa.provider == "deepseek"
@@ -309,8 +309,8 @@ wiki_dir         = {tmp_dir / "wiki"}
 vector_store_dir = {tmp_dir / "store"}
 auto_sync_wiki   = false
 """)
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA.from_ini(ini)
     assert qa.provider == "openai_compatible"
@@ -336,8 +336,8 @@ top_k                = 7
 similarity_threshold = 0.8
 auto_sync_wiki       = false
 """)
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA.from_ini(ini)
     assert qa.top_k == 7
@@ -361,8 +361,8 @@ model    = text-embedding-ada-002
 api_key  = emb-key
 base_url = https://emb.example.com
 """)
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction") as mock_emb_cls:
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction") as mock_emb_cls:
         mock_llm_cls.return_value = MagicMock()
         mock_emb_cls.return_value = FakeEmbedding()
         CSM_QA.from_ini(ini)
@@ -387,8 +387,8 @@ auto_sync_wiki   = false
 [prompt]
 system_prompt = You are a pirate.
 """)
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA.from_ini(ini)
     assert qa.system_prompt == "You are a pirate."
@@ -406,8 +406,8 @@ wiki_dir         = {tmp_dir / "wiki"}
 vector_store_dir = {tmp_dir / "store"}
 auto_sync_wiki   = false
 """)
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA.from_ini(ini, api_key="sk-override")
     kw = mock_llm_cls.call_args.kwargs
@@ -432,8 +432,8 @@ vector_store_dir = {tmp_dir / "store"}
 auto_sync_wiki   = false
 """)
     monkeypatch.chdir(tmp_dir)
-    with patch("csm_qa.api.LLMClient") as mock_llm_cls, \
-            patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
+    with patch("csm_llm_qa.api.LLMClient") as mock_llm_cls, \
+            patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()):
         mock_llm_cls.return_value = MagicMock()
         qa = CSM_QA.from_ini("config.ini")  # relative path
     kw = mock_llm_cls.call_args.kwargs
@@ -460,9 +460,9 @@ def test_auto_sync_wiki_triggers_remote_when_dir_missing(tmp_dir):
     wiki_dir = wiki_parent / "remote"  # 故意不创建
 
     with (
-        patch("csm_qa.api.LLMClient") as mock_llm_cls,
-        patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
-        patch("csm_qa.api.check_and_update_wiki") as mock_remote,
+        patch("csm_llm_qa.api.LLMClient") as mock_llm_cls,
+        patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
+        patch("csm_llm_qa.api.check_and_update_wiki") as mock_remote,
     ):
         mock_llm_cls.return_value = MagicMock()
         mock_remote.return_value = True
@@ -499,9 +499,9 @@ def test_auto_sync_wiki_force_sync_when_dir_missing_and_commit_matches(tmp_dir):
     wiki_dir = wiki_parent / "remote"  # 故意不创建
 
     with (
-        patch("csm_qa.api.LLMClient") as mock_llm_cls,
-        patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
-        patch("csm_qa.api.check_and_update_wiki") as mock_remote,
+        patch("csm_llm_qa.api.LLMClient") as mock_llm_cls,
+        patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
+        patch("csm_llm_qa.api.check_and_update_wiki") as mock_remote,
     ):
         mock_llm_cls.return_value = MagicMock()
         mock_remote.return_value = True
@@ -525,9 +525,9 @@ def test_auto_sync_wiki_uses_regular_sync_when_dir_exists(tmp_dir):
     (wiki_dir / "a.md").write_text("# test", encoding="utf-8")
 
     with (
-        patch("csm_qa.api.LLMClient") as mock_llm_cls,
-        patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
-        patch("csm_qa.api.check_and_update_wiki") as mock_remote,
+        patch("csm_llm_qa.api.LLMClient") as mock_llm_cls,
+        patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
+        patch("csm_llm_qa.api.check_and_update_wiki") as mock_remote,
     ):
         mock_llm_cls.return_value = MagicMock()
 
@@ -546,9 +546,9 @@ def test_auto_sync_wiki_uses_regular_sync_when_no_source_json(tmp_dir):
     wiki_dir = tmp_dir / "csm-wiki" / "remote"  # 不创建，父目录也无 source json
 
     with (
-        patch("csm_qa.api.LLMClient") as mock_llm_cls,
-        patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
-        patch("csm_qa.api.check_and_update_wiki") as mock_remote,
+        patch("csm_llm_qa.api.LLMClient") as mock_llm_cls,
+        patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
+        patch("csm_llm_qa.api.check_and_update_wiki") as mock_remote,
     ):
         mock_llm_cls.return_value = MagicMock()
 
@@ -570,10 +570,10 @@ def test_auto_sync_wiki_remote_exception_is_swallowed(tmp_dir):
     wiki_dir = wiki_parent / "remote"
 
     with (
-        patch("csm_qa.api.LLMClient") as mock_llm_cls,
-        patch("csm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
+        patch("csm_llm_qa.api.LLMClient") as mock_llm_cls,
+        patch("csm_llm_qa.api.EmbeddingFunction", return_value=FakeEmbedding()),
         patch(
-            "csm_qa.api.check_and_update_wiki",
+            "csm_llm_qa.api.check_and_update_wiki",
             side_effect=RuntimeError("network error"),
         ),
     ):

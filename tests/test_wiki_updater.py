@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from csm_qa.wiki_updater import (
+from csm_llm_qa.wiki_updater import (
     WikiSource,
     _repo_api_url,
     check_and_update_wiki,
@@ -188,7 +188,7 @@ class TestCheckAndUpdateWiki:
         source = self._source_file(tmp_dir, commit_id=SHA)
         retriever = MagicMock()
         with patch(
-            "csm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA
+            "csm_llm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA
         ):
             result = check_and_update_wiki(
                 source_file=source,
@@ -204,8 +204,8 @@ class TestCheckAndUpdateWiki:
         retriever.sync_wiki.return_value = {"updated": 5, "skipped": 0, "removed": 0}
 
         with (
-            patch("csm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA),
-            patch("csm_qa.wiki_updater.pull_wiki") as mock_pull,
+            patch("csm_llm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA),
+            patch("csm_llm_qa.wiki_updater.pull_wiki") as mock_pull,
         ):
             result = check_and_update_wiki(
                 source_file=source,
@@ -227,8 +227,8 @@ class TestCheckAndUpdateWiki:
         retriever.sync_wiki.return_value = {"updated": 3, "skipped": 0, "removed": 0}
 
         with (
-            patch("csm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA),
-            patch("csm_qa.wiki_updater.pull_wiki"),
+            patch("csm_llm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA),
+            patch("csm_llm_qa.wiki_updater.pull_wiki"),
         ):
             result = check_and_update_wiki(
                 source_file=source,
@@ -246,8 +246,8 @@ class TestCheckAndUpdateWiki:
         retriever.sync_wiki.return_value = {"updated": 10, "skipped": 0, "removed": 0}
 
         with (
-            patch("csm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA),
-            patch("csm_qa.wiki_updater.pull_wiki"),
+            patch("csm_llm_qa.wiki_updater.fetch_latest_commit_id", return_value=SHA),
+            patch("csm_llm_qa.wiki_updater.pull_wiki"),
         ):
             result = check_and_update_wiki(
                 source_file=source,

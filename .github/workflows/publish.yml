@@ -1,4 +1,4 @@
-# Publish csm-qa to PyPI on every v* tag push.
+# Publish csm-llm-qa to PyPI on every v* tag push.
 #
 # Authentication uses PyPI Trusted Publisher (OIDC) — no API token needed.
 # Before the first release, register this workflow as a Trusted Publisher on
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/csm-qa
+      url: https://pypi.org/p/csm-llm-qa
     permissions:
       id-token: write  # required for OIDC Trusted Publisher
 
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/csm-qa
+      url: https://test.pypi.org/p/csm-llm-qa
     permissions:
       id-token: write  # required for OIDC Trusted Publisher
 

@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "csm-qa"
+name = "csm-llm-qa"
 version = "0.1.0"
 description = "RAG-powered Q&A library for the CSM (Communicable State Machine) / LabVIEW knowledge base."
 readme = "README.md"
@@ -44,5 +44,5 @@ Issues = "https://github.com/NEVSTOP-LAB/CSM-LLM-QA/issues"
 Changelog = "https://github.com/NEVSTOP-LAB/CSM-LLM-QA/releases"
 
 [tool.setuptools.packages.find]
-include = ["csm_qa*"]
+include = ["csm_llm_qa*"]
 exclude = ["tests*", "examples*"]

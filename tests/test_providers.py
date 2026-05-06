@@ -2,7 +2,7 @@
 
 import pytest
 
-from csm_qa.providers import get_preset, list_providers, resolve_endpoint
+from csm_llm_qa.providers import get_preset, list_providers, resolve_endpoint
 
 
 def test_list_providers_only_two():

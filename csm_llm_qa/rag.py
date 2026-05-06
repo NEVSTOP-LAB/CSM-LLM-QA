@@ -199,7 +199,7 @@ class RAGRetriever:
         )
         self._collection = self._client.get_or_create_collection(
             name=self.COLLECTION_NAME,
-            metadata={"description": "csm_qa wiki vector store"},
+            metadata={"description": "csm_llm_qa wiki vector store"},
         )
 
     # ─── 哈希管理（增量更新）─────────────────────────────────────

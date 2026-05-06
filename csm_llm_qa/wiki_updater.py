@@ -2,13 +2,13 @@
 
 用法示例::
 
-    from csm_qa.wiki_updater import check_and_update_wiki
-    from csm_qa.rag import EmbeddingFunction, RAGRetriever
+    from csm_llm_qa.wiki_updater import check_and_update_wiki
+    from csm_llm_qa.rag import EmbeddingFunction, RAGRetriever
 
     embedding_fn = EmbeddingFunction()
     retriever = RAGRetriever(
         wiki_dir="csm-wiki/remote",
-        vector_store_dir=".csm_qa/vector_store",
+        vector_store_dir=".csm_llm_qa/vector_store",
         embedding_fn=embedding_fn,
     )
     updated = check_and_update_wiki(
@@ -106,7 +106,7 @@ def fetch_latest_commit_id(
             url,
             headers={
                 "Accept": "application/vnd.github.v3+json",
-                "User-Agent": "csm-qa-wiki-updater/1.0",
+                "User-Agent": "csm-llm-qa-wiki-updater/1.0",
             },
         )
         try:
@@ -166,7 +166,7 @@ def check_and_update_wiki(
     Args:
         source_file: ``wiki_source.json`` 路径。
         local_dir: wiki 本地克隆目录。
-        retriever: :class:`~csm_qa.rag.RAGRetriever` 实例，用于触发 RAG 同步。
+        retriever: :class:`~csm_llm_qa.rag.RAGRetriever` 实例，用于触发 RAG 同步。
         branch: 远程分支名。
         force_sync: 即使 commit 未变化也强制重建 RAG。
         timeout: GitHub API 请求超时秒数。
