@@ -7,9 +7,13 @@
 ## 安装
 
 ```bash
-pip install -e .
-# 或
-pip install -r requirements.txt
+pip install csm-qa
+```
+
+开发安装（本地源码）：
+
+```bash
+pip install -e .[test]
 ```
 
 依赖：`openai>=1.0`、`chromadb>=0.4`、`sentence-transformers>=2.2`、`charset-normalizer>=3.0`。

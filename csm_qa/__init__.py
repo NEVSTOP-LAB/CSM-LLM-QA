@@ -14,8 +14,14 @@
     answer = qa.ask("CSM 的状态机如何切换？")
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from csm_qa.api import CSM_QA
 from csm_qa.types import AnswerResult, Message
 
 __all__ = ["CSM_QA", "Message", "AnswerResult"]
-__version__ = "0.1.0"
+
+try:
+    __version__ = version("csm-qa")
+except PackageNotFoundError:
+    __version__ = "0.1.0"
