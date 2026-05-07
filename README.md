@@ -104,6 +104,16 @@ qa = CSM_QA.from_env()
 # LLM_API_KEY / LLM_PROVIDER / LLM_MODEL / LLM_BASE_URL
 ```
 
+### 从 INI 配置文件构造
+
+```python
+qa = CSM_QA.from_ini("config.ini")
+# 支持相对路径和绝对路径；可用参数覆盖文件配置：
+# qa = CSM_QA.from_ini("config.ini", api_key="sk-override")
+```
+
+示例配置见 [`examples/config.ini.example`](examples/config.ini.example)。
+
 ---
 
 ## 知识库
