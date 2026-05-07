@@ -1,19 +1,29 @@
-# Publish csm-llm-qa to PyPI on every v* tag push.
+# Publish csm-llm-qa packages:
+# - Every push/workflow_dispatch: TestPyPI
+# - v* tag push: PyPI
 #
-# Authentication uses PyPI Trusted Publisher (OIDC) — no API token needed.
-# Before the first release, register this workflow as a Trusted Publisher on
-# PyPI:
-#   Owner:      NEVSTOP-LAB
-#   Repository: CSM-LLM-QA
-#   Workflow:   publish.yml
-#   Environment: pypi
+# Authentication uses Trusted Publisher (OIDC) — no API token needed.
+# Before the first release, register this workflow as a Trusted Publisher on:
+# 1) TestPyPI (project: csm-llm-qa)
+#    Owner:       NEVSTOP-LAB
+#    Repository:  CSM-LLM-QA
+#    Workflow:    publish.yml
+#    Environment: testpypi
+# 2) PyPI (project: csm-llm-qa)
+#    Owner:       NEVSTOP-LAB
+#    Repository:  CSM-LLM-QA
+#    Workflow:    publish.yml
+#    Environment: pypi
 
 name: Publish to PyPI
 
 on:
   push:
+    branches:
+      - "**"
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -43,6 +53,7 @@ jobs:
   publish-to-pypi:
     name: Publish to PyPI
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -82,5 +93,5 @@ jobs:
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://upload.test.pypi.org/legacy/
+          repository-url: https://test.pypi.org/legacy/
           attestations: false
