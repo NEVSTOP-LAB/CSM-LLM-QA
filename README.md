@@ -7,9 +7,7 @@
 ## 安装
 
 ```bash
-pip install -e .
-# 或
-pip install -r requirements.txt
+pip install csm-llm-qa
 ```
 
 依赖：`openai>=1.0`、`chromadb>=0.4`、`sentence-transformers>=2.2`、`charset-normalizer>=3.0`。
@@ -19,7 +17,7 @@ pip install -r requirements.txt
 ## 60 秒上手
 
 ```python
-from csm_qa import CSM_QA
+from csm_llm_qa import CSM_QA
 
 qa = CSM_QA(api_key="sk-deepseek-xxx")           # 默认 provider=deepseek
 answer = qa.ask("CSM 框架中的状态机如何切换？")
@@ -29,7 +27,7 @@ print(answer)
 带历史对话：
 
 ```python
-from csm_qa import CSM_QA, Message
+from csm_llm_qa import CSM_QA, Message
 
 qa = CSM_QA(api_key="sk-xxx")
 history = [
@@ -66,7 +64,7 @@ CSM_QA(
     request_timeout=60.0,
 
     wiki_dir="csm-wiki/remote",             # 知识库目录
-    vector_store_dir=".csm_qa/vector_store",
+    vector_store_dir=".csm_llm_qa/vector_store",
     embedding_provider="local",             # "local"（本地）或 "openai"
     embedding_model="BAAI/bge-small-zh-v1.5",
     embedding_api_key=None,
@@ -119,12 +117,12 @@ qa = CSM_QA.from_env()
 - 之后可通过命令行手动增量同步：
 
 ```bash
-python -m csm_qa.sync_wiki                 # 增量
-python -m csm_qa.sync_wiki --force         # 强制重建
-python -m csm_qa.sync_wiki --wiki ./docs --store ./.csm_qa/vector_store
+python -m csm_llm_qa.sync_wiki                 # 增量
+python -m csm_llm_qa.sync_wiki --force         # 强制重建
+python -m csm_llm_qa.sync_wiki --wiki ./docs --store ./.csm_llm_qa/vector_store
 
 # 通过 wiki_source.json 检查远程更新并按需拉取
-python -m csm_qa.sync_wiki --remote
+python -m csm_llm_qa.sync_wiki --remote
 ```
 
 或在代码中：
@@ -137,7 +135,7 @@ qa.sync_wiki(force=False)
 
 ## 提示词
 
-库内置一段针对 **CSM/LabVIEW + RAG** 的中文 system prompt（详见 [`csm_qa/prompts.py`](csm_qa/prompts.py) 的 `DEFAULT_SYSTEM_PROMPT`）。
+库内置一段针对 **CSM/LabVIEW + RAG** 的中文 system prompt（详见 [`csm_llm_qa/prompts.py`](csm_llm_qa/prompts.py) 的 `DEFAULT_SYSTEM_PROMPT`）。
 
 如需替换为通用领域 / 英文 / 自定义风格，传入 `system_prompt=` 即可：
 
@@ -147,38 +145,9 @@ qa = CSM_QA(api_key="sk", system_prompt="You are a helpful general-purpose assis
 
 ---
 
-## 项目结构
+## 贡献 / 开发
 
-```
-.
-├── csm_qa/                 # SDK 主包（pip install -e . 后可 import）
-│   ├── __init__.py         # 导出 CSM_QA / Message / AnswerResult
-│   ├── api.py              # CSM_QA 主类
-│   ├── llm.py              # OpenAI 兼容 LLM 客户端
-│   ├── rag.py              # ChromaDB + Embedding 检索器
-│   ├── providers.py        # provider 预设（deepseek / openai_compatible）
-│   ├── prompts.py          # 默认 system prompt
-│   ├── types.py            # Message / AnswerResult / Usage
-│   └── sync_wiki.py        # CLI: python -m csm_qa.sync_wiki
-├── csm-wiki/               # 默认知识库目录（放置 .md 文档）
-├── examples/
-│   ├── basic_usage.py
-│   └── multi_turn.py
-├── tests/                  # 单元测试
-├── pyproject.toml
-└── requirements.txt
-```
-
----
-
-## 测试
-
-```bash
-pip install -e .[test]
-python -m pytest tests/ -v
-```
-
-测试用 mock OpenAI 客户端 + 词袋式 fake embedding，无需真实 API key 与模型下载。
+请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 

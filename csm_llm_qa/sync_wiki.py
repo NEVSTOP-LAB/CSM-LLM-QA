@@ -1,16 +1,16 @@
-"""命令行入口：``python -m csm_qa.sync_wiki``。
+"""命令行入口：``python -m csm_llm_qa.sync_wiki``。
 
-直接构建 :class:`~csm_qa.rag.RAGRetriever` 并触发同步，无需 LLM API key。
+直接构建 :class:`~csm_llm_qa.rag.RAGRetriever` 并触发同步，无需 LLM API key。
 
 用法::
 
-    python -m csm_qa.sync_wiki                   # 增量同步默认目录
-    python -m csm_qa.sync_wiki --wiki ./csm-wiki/remote --store ./.csm_qa/vector_store
-    python -m csm_qa.sync_wiki --force           # 强制重建
+    python -m csm_llm_qa.sync_wiki                   # 增量同步默认目录
+    python -m csm_llm_qa.sync_wiki --wiki ./csm-wiki/remote --store ./.csm_llm_qa/vector_store
+    python -m csm_llm_qa.sync_wiki --force           # 强制重建
 
     # 远程模式：通过 wiki_source.json 检查最新 commit，按需拉取并更新 RAG
-    python -m csm_qa.sync_wiki --remote
-    python -m csm_qa.sync_wiki --remote --source csm-wiki/wiki_source.json --wiki csm-wiki/remote
+    python -m csm_llm_qa.sync_wiki --remote
+    python -m csm_llm_qa.sync_wiki --remote --source csm-wiki/wiki_source.json --wiki csm-wiki/remote
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import argparse
 import logging
 import sys
 
-from csm_qa.rag import EmbeddingFunction, RAGRetriever
+from csm_llm_qa.rag import EmbeddingFunction, RAGRetriever
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
         "--wiki", default="csm-wiki/remote", help="wiki 本地目录"
     )
     parser.add_argument(
-        "--store", default=".csm_qa/vector_store", help="向量库目录"
+        "--store", default=".csm_llm_qa/vector_store", help="向量库目录"
     )
     parser.add_argument(
         "--embedding-provider",
@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.remote:
-        from csm_qa.wiki_updater import check_and_update_wiki
+        from csm_llm_qa.wiki_updater import check_and_update_wiki
 
         updated = check_and_update_wiki(
             source_file=args.source,

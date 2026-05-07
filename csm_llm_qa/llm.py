@@ -12,7 +12,7 @@ from typing import Optional
 
 from openai import APIConnectionError, APIError, OpenAI, RateLimitError
 
-from csm_qa.types import Usage
+from csm_llm_qa.types import Usage
 
 logger = logging.getLogger(__name__)
 

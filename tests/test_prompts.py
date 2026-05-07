@@ -1,6 +1,6 @@
 """Prompt 模板测试。"""
 
-from csm_qa.prompts import (
+from csm_llm_qa.prompts import (
     CONTEXT_BLOCK_TEMPLATE,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_WIKI_BASE_URL,

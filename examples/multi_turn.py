@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from csm_qa import CSM_QA, Message
+from csm_llm_qa import CSM_QA, Message
 
 
 def main() -> None:

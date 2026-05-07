@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from csm_qa import CSM_QA
+from csm_llm_qa import CSM_QA
 
 
 def main() -> None:

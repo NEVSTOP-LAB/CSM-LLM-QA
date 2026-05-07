@@ -3,20 +3,27 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "csm_qa"
+name = "csm-llm-qa"
 version = "0.1.0"
 description = "RAG-powered Q&A library for the CSM (Communicable State Machine) / LabVIEW knowledge base."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "NEVSTOP-LAB" }]
 keywords = ["rag", "llm", "deepseek", "csm", "labview", "qa"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
     "openai>=1.0",
@@ -32,9 +39,10 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/NEVSTOP-LAB/CSM-Reply-Robot"
-Issues = "https://github.com/NEVSTOP-LAB/CSM-Reply-Robot/issues"
+Homepage = "https://github.com/NEVSTOP-LAB/CSM-LLM-QA"
+Issues = "https://github.com/NEVSTOP-LAB/CSM-LLM-QA/issues"
+Changelog = "https://github.com/NEVSTOP-LAB/CSM-LLM-QA/releases"
 
 [tool.setuptools.packages.find]
-include = ["csm_qa*"]
+include = ["csm_llm_qa*"]
 exclude = ["tests*", "examples*"]

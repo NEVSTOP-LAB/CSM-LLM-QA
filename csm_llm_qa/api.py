@@ -2,7 +2,7 @@
 
 外部使用示例::
 
-    from csm_qa import CSM_QA, Message
+    from csm_llm_qa import CSM_QA, Message
 
     qa = CSM_QA(api_key="sk-xxx")               # 默认 deepseek + 本地 embedding
     answer = qa.ask("CSM 的状态机如何切换？")
@@ -22,12 +22,12 @@ import os
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
-from csm_qa.llm import LLMClient
-from csm_qa.prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_WIKI_BASE_URL, build_system_message
-from csm_qa.providers import resolve_endpoint
-from csm_qa.rag import EmbeddingFunction, EmbeddingProvider, RAGRetriever
-from csm_qa.types import AnswerResult, Message
-from csm_qa.wiki_updater import check_and_update_wiki
+from csm_llm_qa.llm import LLMClient
+from csm_llm_qa.prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_WIKI_BASE_URL, build_system_message
+from csm_llm_qa.providers import resolve_endpoint
+from csm_llm_qa.rag import EmbeddingFunction, EmbeddingProvider, RAGRetriever
+from csm_llm_qa.types import AnswerResult, Message
+from csm_llm_qa.wiki_updater import check_and_update_wiki
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class CSM_QA:
         max_retries: LLM 调用重试次数。
         request_timeout: 单次 LLM 请求超时（秒）。
         wiki_dir: 知识库目录，默认 ``"csm-wiki/remote"``。
-        vector_store_dir: 向量库持久化目录，默认 ``".csm_qa/vector_store"``。
+        vector_store_dir: 向量库持久化目录，默认 ``".csm_llm_qa/vector_store"``。
         embedding_provider: ``"local"`` 或 ``"openai"``。
         embedding_model: embedding 模型名（local 默认 BAAI/bge-small-zh-v1.5）。
         embedding_api_key: ``embedding_provider="openai"`` 时使用。
@@ -75,7 +75,7 @@ class CSM_QA:
         max_retries: int = 3,
         request_timeout: float = 60.0,
         wiki_dir: str | Path = "csm-wiki/remote",
-        vector_store_dir: str | Path = ".csm_qa/vector_store",
+        vector_store_dir: str | Path = ".csm_llm_qa/vector_store",
         embedding_provider: EmbeddingProvider = "local",
         embedding_model: str = "BAAI/bge-small-zh-v1.5",
         embedding_api_key: Optional[str] = None,
@@ -191,7 +191,7 @@ class CSM_QA:
 
             [rag]
             wiki_dir          = csm-wiki/remote
-            vector_store_dir  = .csm_qa/vector_store
+            vector_store_dir  = .csm_llm_qa/vector_store
             top_k             = 6
             similarity_threshold = 0.72
             auto_sync_wiki    = true
@@ -252,7 +252,7 @@ class CSM_QA:
             "max_retries": _getint("llm", "max_retries", 3),
             "request_timeout": _getfloat("llm", "request_timeout", 60.0),
             "wiki_dir": _get("rag", "wiki_dir", "csm-wiki/remote"),
-            "vector_store_dir": _get("rag", "vector_store_dir", ".csm_qa/vector_store"),
+            "vector_store_dir": _get("rag", "vector_store_dir", ".csm_llm_qa/vector_store"),
             "top_k": _getint("rag", "top_k", 6),
             "similarity_threshold": _getfloat("rag", "similarity_threshold", 0.72),
             "auto_sync_wiki": _getbool("rag", "auto_sync_wiki", True),
