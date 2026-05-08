@@ -47,7 +47,7 @@ jobs:
         env:
           GITHUB_REF: ${{ github.ref }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           python - <<'PY'
@@ -62,9 +62,9 @@ jobs:
               source_version = os.environ["GITHUB_REF_NAME"][1:]
           else:
               source_version = tomllib.loads(content)["project"]["version"]
-          run_id = os.environ["GITHUB_RUN_ID"]
+          run_number = os.environ["GITHUB_RUN_NUMBER"]
           run_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
-          build_number = f"{run_id}{int(run_attempt):04d}"
+          build_number = f"{run_number}{int(run_attempt, 10):04d}"
           package_version = f"{source_version}.dev{build_number}"
           updated_content, replacements = re.subn(
               r'^version = "[^"]+"$',
