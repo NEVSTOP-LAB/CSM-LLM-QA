@@ -57,9 +57,10 @@ jobs:
 
           pyproject_path = Path("pyproject.toml")
           content = pyproject_path.read_text(encoding="utf-8")
-          source_version = tomllib.loads(content)["project"]["version"]
           if os.environ["GITHUB_REF"].startswith("refs/tags/v"):
               source_version = os.environ["GITHUB_REF_NAME"][1:]
+          else:
+              source_version = tomllib.loads(content)["project"]["version"]
           package_version = f"{source_version}.dev{os.environ['GITHUB_RUN_NUMBER']}"
           updated_content, replacements = re.subn(
               r'^version = "[^"]+"$',
