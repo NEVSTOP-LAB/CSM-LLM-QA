@@ -63,9 +63,13 @@ jobs:
           else:
               source_version = tomllib.loads(content)["project"]["version"]
           run_number = os.environ["GITHUB_RUN_NUMBER"]
+          if not run_number.isdigit():
+              raise RuntimeError("GITHUB_RUN_NUMBER must be numeric")
           run_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
           if not run_attempt.isdigit():
               raise RuntimeError("GITHUB_RUN_ATTEMPT must be numeric")
+          if len(run_number) > 99 or len(run_attempt) > 99:
+              raise RuntimeError("GITHUB_RUN_NUMBER and GITHUB_RUN_ATTEMPT must be at most 99 digits")
           # Prefix with 9 to avoid normalization stripping leading zeros, then
           # encode lengths and values as:
           #   9{len(run_number):02d}{run_number}{len(run_attempt):02d}{run_attempt}
