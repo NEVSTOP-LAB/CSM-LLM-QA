@@ -64,7 +64,7 @@ jobs:
               source_version = tomllib.loads(content)["project"]["version"]
           run_id = os.environ["GITHUB_RUN_ID"]
           run_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
-          build_number = int(f"{run_id}{int(run_attempt):04d}")
+          build_number = f"{run_id}{int(run_attempt):04d}"
           package_version = f"{source_version}.dev{build_number}"
           updated_content, replacements = re.subn(
               r'^version = "[^"]+"$',
