@@ -63,11 +63,12 @@ jobs:
           else:
               source_version = tomllib.loads(content)["project"]["version"]
           run_number = os.environ["GITHUB_RUN_NUMBER"]
-          run_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+          run_attempt = str(int(os.environ["GITHUB_RUN_ATTEMPT"]))
           # Prefix with 9 to avoid normalization stripping leading zeros, then
-          # encode both field lengths so the numeric dev suffix remains
-          # unambiguous across run_number/run_attempt pairs.
-          build_number = f"9{len(run_number):02d}{run_number}{len(run_attempt):02d}{int(run_attempt)}"
+          # encode lengths and values as:
+          #   9{len(run_number):02d}{run_number}{len(run_attempt):02d}{run_attempt}
+          # so run_number=1234 and run_attempt=1 becomes 9041234011.
+          build_number = f"9{len(run_number):02d}{run_number}{len(run_attempt):02d}{run_attempt}"
           package_version = f"{source_version}.dev{build_number}"
           updated_content, replacements = re.subn(
               r'^version = "[^"]+"$',
