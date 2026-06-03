@@ -20,6 +20,17 @@ def test_default_system_prompt_requires_wiki_links():
     assert "csm-wiki" in DEFAULT_SYSTEM_PROMPT
 
 
+def test_default_system_prompt_requires_csm_syntax_examples():
+    """默认提示词应要求 CSM 消息示例严格使用官方语法。"""
+    assert "官方语法" in DEFAULT_SYSTEM_PROMPT
+    assert "StateName >> Arguments" in DEFAULT_SYSTEM_PROMPT
+    assert "StateName >> Arguments -@ TargetModule" in DEFAULT_SYSTEM_PROMPT
+    assert "StateName >> Arguments -> TargetModule" in DEFAULT_SYSTEM_PROMPT
+    assert "StateName >> Arguments ->| TargetModule" in DEFAULT_SYSTEM_PROMPT
+    assert "-><status>" in DEFAULT_SYSTEM_PROMPT
+    assert "-><register>" in DEFAULT_SYSTEM_PROMPT
+
+
 def test_default_wiki_base_url_points_to_csm_wiki_repo():
     assert DEFAULT_WIKI_BASE_URL.startswith("https://")
     assert "CSM-Wiki" in DEFAULT_WIKI_BASE_URL
