@@ -27,6 +27,11 @@ def test_length_guide_block_contains_format_rules():
     assert "确认/肯定性消息" in LENGTH_GUIDE_BLOCK
     assert "多轮追问/补充/更正" in LENGTH_GUIDE_BLOCK
     assert "仅输出增量的补充信息或更正内容" in LENGTH_GUIDE_BLOCK
+    # 歧义问题 & 对比类问题
+    assert "歧义问题" in LENGTH_GUIDE_BLOCK
+    assert "对比类问题" in LENGTH_GUIDE_BLOCK
+    # 代码示例边界
+    assert "代码示例仅在用户明确要求" in LENGTH_GUIDE_BLOCK
     assert "简单事实问题" in LENGTH_GUIDE_BLOCK
 
 
@@ -40,6 +45,12 @@ def test_content_rules_block_contains_rules():
     # 多轮对话仅输出增量
     assert "多轮对话仅输出增量" in CONTENT_RULES_BLOCK
     assert "不要复述历史中已建立的背景" in CONTENT_RULES_BLOCK
+    # 部分知识 & 回退引用 & 冲突 & 复杂推理
+    assert "以下内容未在资料中找到" in CONTENT_RULES_BLOCK
+    assert "（参考：来源路径）" in CONTENT_RULES_BLOCK
+    assert "参考资料冲突时坦白" in CONTENT_RULES_BLOCK
+    assert "复杂问题先梳理再回答" in CONTENT_RULES_BLOCK
+    assert "不要暴露内部推理过程" in CONTENT_RULES_BLOCK
 
 
 def test_syntax_reference_block_contains_csm_syntax():
@@ -284,3 +295,49 @@ def test_filter_empty_contexts_keeps_valid():
 
 def test_filter_empty_contexts_empty_list():
     assert _filter_empty_contexts([]) == []
+
+
+# ─── 新增规则专项测试 ──────────────────────────────────────────
+
+def test_partial_knowledge_rule():
+    """规则 #1 扩展：参考资料仅覆盖部分问题时，明确标注缺失部分。"""
+    contexts = [{"text": "状态机切换通过消息通信", "source": "csm.md"}]
+    out = build_system_message(DEFAULT_SYSTEM_PROMPT, contexts)
+    assert "仅据参考资料回答" in out
+    assert "以下内容未在资料中找到" in out
+
+
+def test_ambiguous_question_rule_in_length_guide():
+    """LENGTH_GUIDE_BLOCK 应包含歧义问题的处理指引。"""
+    assert "歧义问题" in LENGTH_GUIDE_BLOCK
+    assert "你是指" in LENGTH_GUIDE_BLOCK
+    assert "不要猜测意图" in LENGTH_GUIDE_BLOCK
+
+
+def test_contrast_question_rule_in_length_guide():
+    """LENGTH_GUIDE_BLOCK 应包含对比类问题的格式指引。"""
+    assert "对比类问题" in LENGTH_GUIDE_BLOCK
+    assert "分点对照" in LENGTH_GUIDE_BLOCK
+
+
+def test_code_example_boundary_rule():
+    """LENGTH_GUIDE_BLOCK 应要求代码示例仅在必要时给出。"""
+    assert "纯概念/定义/对比类问题不要附加代码块" in LENGTH_GUIDE_BLOCK
+
+
+def test_fallback_citation_rule():
+    """规则 #5 扩展：有来源无链接时用纯文本标注。"""
+    assert "（参考：来源路径）" in CONTENT_RULES_BLOCK
+
+
+def test_conflict_handling_rule():
+    """规则 #10：资料冲突时应坦白而非强行合并。"""
+    assert "参考资料冲突时坦白" in CONTENT_RULES_BLOCK
+    assert "强行合并" in CONTENT_RULES_BLOCK
+
+
+def test_complex_question_reasoning_rule():
+    """规则 #11：复杂问题先梳理但不暴露推理过程。"""
+    assert "复杂问题先梳理再回答" in CONTENT_RULES_BLOCK
+    assert "不要暴露内部推理过程" in CONTENT_RULES_BLOCK
+    assert "首先我需要分析" in CONTENT_RULES_BLOCK  # 禁止的元语言示例
