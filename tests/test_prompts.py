@@ -25,6 +25,8 @@ def test_role_block_contains_csm_and_labview():
 def test_length_guide_block_contains_format_rules():
     assert "【回答长度与格式】" in LENGTH_GUIDE_BLOCK
     assert "确认/肯定性消息" in LENGTH_GUIDE_BLOCK
+    assert "多轮追问/补充/更正" in LENGTH_GUIDE_BLOCK
+    assert "仅输出增量的补充信息或更正内容" in LENGTH_GUIDE_BLOCK
     assert "简单事实问题" in LENGTH_GUIDE_BLOCK
 
 
@@ -35,6 +37,9 @@ def test_content_rules_block_contains_rules():
     # 反幻觉规则 #9
     assert "禁止杜撰" in CONTENT_RULES_BLOCK
     assert "推断，请以官方文档为准" in CONTENT_RULES_BLOCK
+    # 多轮对话仅输出增量
+    assert "多轮对话仅输出增量" in CONTENT_RULES_BLOCK
+    assert "不要复述历史中已建立的背景" in CONTENT_RULES_BLOCK
 
 
 def test_syntax_reference_block_contains_csm_syntax():
