@@ -108,7 +108,6 @@ def build_system_prompt(
 
         custom = build_system_prompt(
             role="You are an expert LabVIEW developer.",
-            content_rules=None,   # 保留内置规则
         )
 
     Args:
