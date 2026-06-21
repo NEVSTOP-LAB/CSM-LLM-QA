@@ -341,3 +341,22 @@ def test_complex_question_reasoning_rule():
     assert "复杂问题先梳理再回答" in CONTENT_RULES_BLOCK
     assert "不要暴露内部推理过程" in CONTENT_RULES_BLOCK
     assert "首先我需要分析" in CONTENT_RULES_BLOCK  # 禁止的元语言示例
+
+
+def test_source_traceability_rule():
+    """规则 #12：每项主张须有出处，末尾引用与正文一一对应。"""
+    assert "每项主张有出处" in CONTENT_RULES_BLOCK
+    assert "对应不上的不写入正文" in CONTENT_RULES_BLOCK
+    assert "引用链接必须与正文中实际用到的片段一一对应" in CONTENT_RULES_BLOCK
+
+
+def test_mermaid_preference_rule():
+    """规则 #13：流程图优先 mermaid 且必须有参考资料支撑。"""
+    assert "示例从简，流程优先 mermaid" in CONTENT_RULES_BLOCK
+    assert "mermaid 序列图" in CONTENT_RULES_BLOCK
+    assert "一律不自行凭空绘制" in CONTENT_RULES_BLOCK
+
+
+def test_empty_context_fallback_no_extra_suggestion():
+    """规则 #1：资料为空时只建议查阅 csm-wiki，不再追加'提供更多细节'。"""
+    assert "或提供更多细节" not in CONTENT_RULES_BLOCK
